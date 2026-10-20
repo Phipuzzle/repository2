@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+backend/.env
+
+# Next.js / Node
+node_modules/
+.next/
+out/
+frontend/.env.local
+frontend/.next-dev.log
+frontend/test-results/
+frontend/playwright-report/
+
+# Local tooling
+.DS_Store
+*.log

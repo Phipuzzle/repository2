@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: intelligent-data-agent-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: intelligent_data_agent
+      POSTGRES_USER: ida
+      POSTGRES_PASSWORD: ida
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/001-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ida -d intelligent_data_agent"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:
