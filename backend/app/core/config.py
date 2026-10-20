@@ -15,6 +15,17 @@ class Settings(BaseSettings):
     query_timeout_seconds: int = 15
     sse_poll_interval_seconds: float = 0.5
     sse_heartbeat_seconds: int = 15
+    deepseek_api_key: str = ""
+    deepseek_base_url: str = "https://api.deepseek.com"
+    deepseek_flash_model: str = "deepseek-v4-flash"
+    deepseek_pro_model: str = "deepseek-v4-pro"
+    deepseek_timeout_seconds: int = 60
+    agent_enabled: bool = False
+    cost_approval_threshold: float = 100000.0
+    langfuse_enabled: bool = False
+    langfuse_public_key: str = ""
+    langfuse_secret_key: str = ""
+    langfuse_host: str = "http://localhost:3001"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

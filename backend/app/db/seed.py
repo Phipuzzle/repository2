@@ -4,7 +4,16 @@ from decimal import Decimal
 from sqlalchemy import extract, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import DemoOrder, DemoOrderItem, DemoProduct, DemoRegion, Metric, Role
+from app.db.models import (
+    ColumnMetadata,
+    DemoOrder,
+    DemoOrderItem,
+    DemoProduct,
+    DemoRegion,
+    Metric,
+    Role,
+    TableMetadata,
+)
 
 
 async def seed_demo_data(session: AsyncSession) -> None:
@@ -25,6 +34,35 @@ async def seed_demo_data(session: AsyncSession) -> None:
     else:
         regions = list((await session.scalars(select(DemoRegion).order_by(DemoRegion.id))).all())
         products = list((await session.scalars(select(DemoProduct).order_by(DemoProduct.id))).all())
+
+    existing_metadata = await session.scalar(select(TableMetadata.id).limit(1))
+    if existing_metadata is None:
+        metadata = {
+            "demo_orders": (
+                "订单事实表",
+                [("id", "integer", "订单 ID"), ("region_id", "integer", "区域 ID"), ("product_id", "integer", "商品 ID"), ("created_at", "timestamp with time zone", "下单时间"), ("total_amount", "numeric", "订单金额"), ("status", "text", "订单状态")],
+            ),
+            "demo_order_items": (
+                "订单明细表",
+                [("id", "integer", "明细 ID"), ("order_id", "integer", "订单 ID"), ("quantity", "integer", "购买数量"), ("unit_price", "numeric", "单价")],
+            ),
+            "demo_products": (
+                "商品维度表",
+                [("id", "integer", "商品 ID"), ("name", "text", "商品名称"), ("category", "text", "商品分类")],
+            ),
+            "demo_regions": (
+                "区域维度表",
+                [("id", "integer", "区域 ID"), ("name", "text", "区域名称")],
+            ),
+        }
+        for table_name, (description, fields) in metadata.items():
+            table = TableMetadata(schema_name="analytics", table_name=table_name, description=description)
+            session.add(table)
+            await session.flush()
+            session.add_all(
+                ColumnMetadata(table_id=table.id, column_name=name, data_type=data_type, description=label)
+                for name, data_type, label in fields
+            )
 
     current_year = datetime.now(UTC).year
     for year in range(current_year - 2, current_year + 1):

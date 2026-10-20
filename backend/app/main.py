@@ -13,15 +13,19 @@ from app.core.config import get_settings
 from app.core.errors import unhandled_exception_handler
 from app.core.logging import configure_logging
 from app.db.session import dispose_engine
+from app.agent.telemetry import configure_telemetry
+from app.agent.service import shutdown_agent_runs
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
     configure_logging(settings.log_level)
+    configure_telemetry()
     try:
         yield
     finally:
+        await shutdown_agent_runs()
         await dispose_engine()
 
 

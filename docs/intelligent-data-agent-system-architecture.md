@@ -2,7 +2,7 @@
 
 > 本文档是 `intelligent-data-agent-architecture.md` 的开发执行版，供后续分阶段实现使用。
 >
-> 当前状态：阶段 0、阶段 1 和阶段 2 已完成。阶段 2 已实现 PostgreSQL 持久化 API、SSE 断点恢复、结果分页、只读 SQL 校验、Demo 数据、反馈和审计；真实 Agent/SQL 执行留在阶段 3。
+> 当前状态：阶段 0、阶段 1 和阶段 2 已完成；阶段 3 开发中。阶段 3 接入 LangGraph、DeepSeek Flash/Pro、只读 SQL 执行及 OpenTelemetry 到 Langfuse 的 trace 导出。
 
 ## 1. 开发目标与技术边界
 
@@ -159,6 +159,22 @@ GET  /api/v1/audit-logs
 ```
 
 阶段 2 的 API 负责持久化查询请求和事件、结果分页契约及用户操作。真实 SQL 生成与执行由阶段 3 Agent 接入；因此当前新建 QueryRun 处于 `submitting`，事件流在工作流终态或客户端断开前保持连接。
+
+### 阶段 3 配置 DeepSeek
+
+在 `backend` 目录复制 `.env.example` 为 `.env`，仅在本机填写 DeepSeek 密钥：
+
+```dotenv
+DEEPSEEK_API_KEY=在此填写新创建的DeepSeek密钥
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+DEEPSEEK_FLASH_MODEL=deepseek-v4-flash
+DEEPSEEK_PRO_MODEL=deepseek-v4-pro
+AGENT_ENABLED=true
+```
+
+`backend/.env` 已被 Git 忽略。不要将真实密钥写进 `.env.example`、代码、Linear、日志或提交记录。当前配置默认关闭 Agent；只有启用 Agent 且配置了密钥后，新查询才会启动工作流。模型 ID 可通过环境变量调整，以匹配 DeepSeek 账户实际开放的模型名称。
+
+Langfuse 可选配置 `LANGFUSE_ENABLED=true`、`LANGFUSE_PUBLIC_KEY`、`LANGFUSE_SECRET_KEY` 和 `LANGFUSE_HOST`。启用后 OpenTelemetry SDK 使用 OTLP HTTP 将 Agent、模型调用和 PostgreSQL 查询 trace 发送到 Langfuse；Prompt 和结果正文不作为 span 属性记录。
 
 #### 创建查询
 
@@ -542,15 +558,16 @@ cd frontend && npm run lint && npm run test && npm run build
 
 ### 阶段 3：真实 Agent 能力
 
-- [ ] 定义 `QueryRunState`；
-- [ ] 实现 `DeepSeekModelAdapter`；
-- [ ] 实现 Flash/Pro 模型路由；
-- [ ] 实现意图识别、补充条件和 metadata 检索；
-- [ ] 实现查询计划、SQL 生成和 SQL 修复；
-- [ ] 实现 SQLGlot 校验、权限改写和 EXPLAIN 成本检查；
-- [ ] 实现 asyncpg 查询执行；
-- [ ] 实现结果总结和 ChartSpec；
-- [ ] 接入 OpenTelemetry 和 Langfuse。
+- [x] 定义 `QueryRunState`；
+- [x] 实现 `DeepSeekModelAdapter`；
+- [x] 实现 Flash/Pro 模型路由；
+- [x] 实现意图识别、补充条件和 metadata 检索；
+- [x] 实现查询计划、SQL 生成和一次 SQL 修复；
+- [x] 实现 SQLGlot 校验、analytics 表白名单和 EXPLAIN 成本检查；
+- [x] 通过 SQLAlchemy asyncpg driver 在只读事务中执行查询，并应用语句超时；
+- [x] 实现结果总结和 ChartSpec；
+- [x] 接入 OpenTelemetry，并支持 OTLP 导出到 Langfuse；
+- [ ] 配置有效 DeepSeek Key 后完成真实模型调用验收。
 
 ### 阶段 4：前后端联调
 

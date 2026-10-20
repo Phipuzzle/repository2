@@ -100,6 +100,11 @@ async def create_run(session: AsyncSession, payload: QueryRunCreate) -> QueryRun
     await add_event(session, run, "submitted", "已提交查询")
     await add_audit(session, "query_run.created", run.id, {"question_length": len(run.question)})
     await session.commit()
+    settings = get_settings()
+    if settings.agent_enabled:
+        from app.agent.service import schedule_agent_run
+
+        schedule_agent_run(run.id)
     return await get_run_response(session, run.id)
 
 
@@ -147,6 +152,14 @@ async def set_run_state(session: AsyncSession, run_id: UUID, action: str) -> Que
     await add_event(session, run, event_type, message)
     await add_audit(session, f"query_run.{action}", run.id)
     await session.commit()
+    if action == "cancel":
+        from app.agent.service import cancel_agent_run
+
+        cancel_agent_run(run.id)
+    if action == "approve" and get_settings().agent_enabled:
+        from app.agent.service import schedule_agent_run
+
+        schedule_agent_run(run.id, approved=True)
     return await get_run_response(session, run.id)
 
 
