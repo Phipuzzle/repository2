@@ -5,11 +5,13 @@ from httpx import AsyncClient
 from sqlalchemy import delete, select
 
 from app.db.models import AuditLog, Feedback, QueryEvent, QueryRun
+from app.core.config import get_settings
 from app.db.session import SessionLocal, engine
 
 
 @pytest.fixture(autouse=True)
 async def clean_api_test_data():
+    get_settings().agent_enabled = False
     await engine.dispose()
     async with SessionLocal() as session:
         run_ids = list((await session.scalars(
