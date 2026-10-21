@@ -2,7 +2,7 @@
 
 > 本文档是 `intelligent-data-agent-architecture.md` 的开发执行版，供后续分阶段实现使用。
 >
-> 当前状态：阶段 0、阶段 1 和阶段 2 已完成；阶段 3 开发中。阶段 3 接入 LangGraph、DeepSeek Flash/Pro、只读 SQL 执行及 OpenTelemetry 到 Langfuse 的 trace 导出。
+> 当前状态：阶段 0、阶段 1、阶段 2 和阶段 3 已完成。阶段 3 已接入 LangGraph、DeepSeek Flash/Pro、只读 SQL 执行及 OpenTelemetry 到 Langfuse 的 trace 导出，并完成测试和真实模型调用验收。
 
 ## 1. 开发目标与技术边界
 
@@ -568,7 +568,7 @@ cd frontend && npm run lint && npm run test && npm run build
 - [x] 通过 SQLAlchemy asyncpg driver 在只读事务中执行查询，并应用语句超时；
 - [x] 实现结果总结和 ChartSpec；
 - [x] 接入 OpenTelemetry，并支持 OTLP 导出到 Langfuse；
-- [ ] 配置有效 DeepSeek Key 后完成真实模型调用验收。
+- [x] 配置有效 DeepSeek Key 后完成真实模型调用验收。
 
 ### 阶段 4：前后端联调
 

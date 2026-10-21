@@ -3,6 +3,7 @@ from logging.config import fileConfig
 
 from alembic import context
 from sqlalchemy import pool, text
+from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from app.core.config import get_settings
@@ -29,7 +30,7 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
-def do_run_migrations(connection) -> None:
+def do_run_migrations(connection: Connection) -> None:
     connection.execute(text("CREATE SCHEMA IF NOT EXISTS app"))
     context.configure(
         connection=connection,

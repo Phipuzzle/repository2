@@ -1,16 +1,17 @@
+from collections.abc import AsyncIterator
 from uuid import UUID
 
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import delete, select
 
-from app.db.models import AuditLog, Feedback, QueryEvent, QueryRun
 from app.core.config import get_settings
+from app.db.models import AuditLog, Feedback, QueryEvent, QueryRun
 from app.db.session import SessionLocal, engine
 
 
 @pytest.fixture(autouse=True)
-async def clean_api_test_data():
+async def clean_api_test_data() -> AsyncIterator[None]:
     get_settings().agent_enabled = False
     await engine.dispose()
     async with SessionLocal() as session:

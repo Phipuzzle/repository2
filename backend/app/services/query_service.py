@@ -1,4 +1,5 @@
 import asyncio
+from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
@@ -11,6 +12,7 @@ from app.core.config import get_settings
 from app.db.models import AuditLog, Feedback, Metric, QueryEvent, QueryRun
 from app.schemas.query_run import (
     AuditLogResponse,
+    ChartSpecResponse,
     FeedbackCreate,
     FeedbackResponse,
     MetricResponse,
@@ -51,7 +53,11 @@ def serialize_run(run: QueryRun) -> QueryRunResponse:
         events=[serialize_event(event) for event in run.events],
         sql=run.sql,
         result=result,
-        chartSpec=run.chart_spec,
+        chartSpec=(
+            ChartSpecResponse.model_validate(run.chart_spec)
+            if run.chart_spec is not None
+            else None
+        ),
         insight=run.insight,
         error=run.error,
         clarification=run.clarification,
@@ -168,7 +174,7 @@ async def list_events(session: AsyncSession, run_id: UUID, after_id: int) -> lis
     return list((await session.scalars(select(QueryEvent).where(QueryEvent.run_id == run_id, QueryEvent.sequence > after_id).order_by(QueryEvent.sequence))).all())
 
 
-async def stream_events(run_id: UUID, after_id: int):
+async def stream_events(run_id: UUID, after_id: int) -> AsyncIterator[str]:
     from app.db.session import SessionLocal
 
     settings = get_settings()

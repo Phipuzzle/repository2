@@ -59,9 +59,28 @@ class DeepSeekModelAdapter:
                 span.set_attribute("gen_ai.system", "deepseek")
                 span.set_attribute("gen_ai.request.model", model)
                 async with httpx.AsyncClient(timeout=timeout) as client:
-                    response = await client.post(endpoint, headers=headers, json=payload)
+                    for attempt in range(2):
+                        try:
+                            response = await client.post(endpoint, headers=headers, json=payload)
+                            response.raise_for_status()
+                            break
+                        except httpx.HTTPStatusError as exc:
+                            retryable = (
+                                exc.response.status_code in {408, 429}
+                                or exc.response.status_code >= 500
+                            )
+                            if attempt == 0 and retryable:
+                                continue
+                            raise ModelResponseError(
+                                "DeepSeek returned an unsuccessful response"
+                            ) from exc
+                        except httpx.TransportError as exc:
+                            if attempt == 0:
+                                continue
+                            raise ModelResponseError(
+                                "DeepSeek request failed after retry"
+                            ) from exc
                     span.set_attribute("http.response.status_code", response.status_code)
-                    response.raise_for_status()
                     response_body = response.json()
                     choice = response_body["choices"][0]
                     finish_reason = choice.get("finish_reason")

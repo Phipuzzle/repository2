@@ -1,4 +1,5 @@
 import json
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 from langgraph.graph import END, START, StateGraph
@@ -23,7 +24,9 @@ def build_workflow(
 ) -> Any:
     tracer = get_tracer()
 
-    def traced(name: str, node: Any) -> Any:
+    def traced(
+        name: str, node: Callable[[QueryRunState], Awaitable[dict[str, Any]]]
+    ) -> Callable[[QueryRunState], Awaitable[dict[str, Any]]]:
         async def invoke(state: QueryRunState) -> dict[str, Any]:
             with tracer.start_as_current_span(f"agent.node.{name}") as span:
                 span.set_attribute("agent.node", name)
@@ -151,7 +154,7 @@ def build_workflow(
     def after_cost(state: QueryRunState) -> str:
         return "approval" if state.get("status") == "awaiting_approval" else "execute"
 
-    def approval(state: QueryRunState) -> dict[str, Any]:
+    async def approval(state: QueryRunState) -> dict[str, Any]:
         return {"status": "awaiting_approval"}
 
     graph = StateGraph(QueryRunState)

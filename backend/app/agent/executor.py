@@ -33,7 +33,7 @@ async def explain_query(engine: AsyncEngine, sql: str) -> float:
                 timeout = get_settings().query_timeout_seconds * 1000
                 await connection.execute(text(f"SET LOCAL statement_timeout = '{timeout}ms'"))
                 result = await connection.execute(text("EXPLAIN (FORMAT JSON) " + sql))
-                plan = result.scalar_one()
+        plan: list[dict[str, Any]] = result.scalar_one()
         cost = float(plan[0]["Plan"].get("Total Cost", 0))
         span.set_attribute("db.query.cost", cost)
         return cost

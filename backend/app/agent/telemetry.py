@@ -6,6 +6,7 @@ from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExport
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.trace import Tracer
 
 from app.core.config import get_settings
 
@@ -29,5 +30,5 @@ def configure_telemetry() -> None:
     trace.set_tracer_provider(provider)
 
 
-def get_tracer():
+def get_tracer() -> Tracer:
     return trace.get_tracer("intelligent-data-agent")

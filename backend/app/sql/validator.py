@@ -66,7 +66,7 @@ def validate_read_query(sql: str, max_limit: int = 1000) -> ValidatedQuery:
 
     for node in query.walk():
         if isinstance(node, exp.Func):
-            function_name = (node.name or node.sql_name()).upper()
+            function_name = (node.name or type(node).__name__).upper()
             if function_name in BLOCKED_FUNCTIONS:
                 raise UnsafeQueryError(f"Function is not allowed: {function_name}")
 
