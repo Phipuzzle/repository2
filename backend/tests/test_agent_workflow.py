@@ -27,7 +27,7 @@ class EmptyRows:
 
 class FakeModelAdapter:
     def model_for(self, complexity: str) -> str:
-        return "deepseek-v4-pro" if complexity == "complex" else "deepseek-v4-flash"
+        return "deepseek-v4-pro" if complexity == "complex" else "deepseek-flash"
 
     async def complete_json(
         self, *, model: str, system: str, user: str, temperature: float = 0.0
@@ -75,7 +75,7 @@ async def test_workflow_runs_read_only_query_and_builds_chart(
     assert len(result["result_rows"]) == 5
     assert result["result_schema"][1]["name"] == "total_amount"
     assert result["chart_spec"]["yField"] == "total_amount"
-    assert result["model"] == "deepseek-v4-flash"
+    assert result["model"] == "deepseek-flash"
 
 
 def test_chart_spec_requires_numeric_measure() -> None:
@@ -97,4 +97,4 @@ async def test_deepseek_adapter_requires_a_configured_key(monkeypatch: pytest.Mo
     adapter = DeepSeekModelAdapter()
     monkeypatch.setattr(get_settings(), "deepseek_api_key", "")
     with pytest.raises(ModelConfigurationError, match="DEEPSEEK_API_KEY"):
-        await adapter.complete_json(model="deepseek-v4-flash", system="test", user="test")
+        await adapter.complete_json(model="deepseek-flash", system="test", user="test")

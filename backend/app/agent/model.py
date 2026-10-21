@@ -47,7 +47,9 @@ class DeepSeekModelAdapter:
                 {"role": "user", "content": user},
             ],
             "temperature": temperature,
+            "max_tokens": self.settings.deepseek_max_tokens,
             "response_format": {"type": "json_object"},
+            "stream": False,
         }
 
         try:
@@ -61,7 +63,13 @@ class DeepSeekModelAdapter:
                     span.set_attribute("http.response.status_code", response.status_code)
                     response.raise_for_status()
                     response_body = response.json()
-                    content = response_body["choices"][0]["message"]["content"]
+                    choice = response_body["choices"][0]
+                    finish_reason = choice.get("finish_reason")
+                    if finish_reason == "length":
+                        raise ModelResponseError("DeepSeek JSON response was truncated")
+                    content = choice["message"].get("content")
+                    if not isinstance(content, str) or not content.strip():
+                        raise ModelResponseError("DeepSeek returned empty JSON content")
                     usage = response_body.get("usage", {})
                     if "total_tokens" in usage:
                         span.set_attribute("gen_ai.usage.total_tokens", usage["total_tokens"])

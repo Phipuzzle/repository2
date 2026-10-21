@@ -167,12 +167,13 @@ GET  /api/v1/audit-logs
 ```dotenv
 DEEPSEEK_API_KEY=在此填写新创建的DeepSeek密钥
 DEEPSEEK_BASE_URL=https://api.deepseek.com
-DEEPSEEK_FLASH_MODEL=deepseek-v4-flash
+DEEPSEEK_FLASH_MODEL=deepseek-flash
 DEEPSEEK_PRO_MODEL=deepseek-v4-pro
+DEEPSEEK_MAX_TOKENS=4096
 AGENT_ENABLED=true
 ```
 
-`backend/.env` 已被 Git 忽略。不要将真实密钥写进 `.env.example`、代码、Linear、日志或提交记录。当前配置默认关闭 Agent；只有启用 Agent 且配置了密钥后，新查询才会启动工作流。模型 ID 可通过环境变量调整，以匹配 DeepSeek 账户实际开放的模型名称。
+`backend/.env` 已被 Git 忽略。不要将真实密钥写进 `.env.example`、代码、Linear、日志或提交记录。当前配置默认关闭 Agent；只有启用 Agent 且配置了密钥后，新查询才会启动工作流。DeepSeek 当前推荐的 Flash API 模型 ID 是 `deepseek-flash`，Pro API 模型 ID 是 `deepseek-v4-pro`；旧的 `deepseek-v4-flash` 仅作为兼容别名保留。模型 ID 可通过环境变量调整，以匹配 DeepSeek 账户实际开放的模型名称。JSON 模式使用 `/chat/completions`、`response_format: {"type":"json_object"}`、`stream: false` 和 `DEEPSEEK_MAX_TOKENS`。
 
 Langfuse 可选配置 `LANGFUSE_ENABLED=true`、`LANGFUSE_PUBLIC_KEY`、`LANGFUSE_SECRET_KEY` 和 `LANGFUSE_HOST`。启用后 OpenTelemetry SDK 使用 OTLP HTTP 将 Agent、模型调用和 PostgreSQL 查询 trace 发送到 Langfuse；Prompt 和结果正文不作为 span 属性记录。
 

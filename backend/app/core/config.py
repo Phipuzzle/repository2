@@ -17,9 +17,10 @@ class Settings(BaseSettings):
     sse_heartbeat_seconds: int = 15
     deepseek_api_key: str = ""
     deepseek_base_url: str = "https://api.deepseek.com"
-    deepseek_flash_model: str = "deepseek-v4-flash"
+    deepseek_flash_model: str = "deepseek-flash"
     deepseek_pro_model: str = "deepseek-v4-pro"
     deepseek_timeout_seconds: int = 60
+    deepseek_max_tokens: int = 4096
     agent_enabled: bool = False
     cost_approval_threshold: float = 100000.0
     langfuse_enabled: bool = False
