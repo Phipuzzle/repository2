@@ -9,7 +9,7 @@ COPY pyproject.toml alembic.ini ./
 COPY app ./app
 COPY scripts ./scripts
 
-RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple .
 
 EXPOSE 8000
 

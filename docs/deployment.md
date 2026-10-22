@@ -7,6 +7,20 @@
 
 ## 镜像与健康检查
 
+国内网络需先给 Docker Desktop 配置 registry-mirrors，例如：
+
+```json
+{
+  "registry-mirrors": [
+    "https://docker.mirrors.ustc.edu.cn",
+    "https://hub-mirror.c.163.com",
+    "https://mirror.baidubce.com"
+  ]
+}
+```
+
+Dockerfile 已内置清华 PyPI 镜像和 npmmirror，用于容器内依赖安装。
+
 ```powershell
 cd infra
 docker compose build backend frontend
