@@ -1,4 +1,5 @@
-FROM node:20-alpine AS build
+ARG NODE_IMAGE=docker.mirrors.ustc.edu.cn/library/node:20-alpine
+FROM ${NODE_IMAGE} AS build
 
 WORKDIR /app
 
@@ -19,7 +20,7 @@ ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL \
 
 RUN npm run build
 
-FROM node:20-alpine AS runtime
+FROM ${NODE_IMAGE} AS runtime
 
 WORKDIR /app
 ENV NODE_ENV=production
