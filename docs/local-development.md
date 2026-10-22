@@ -72,6 +72,7 @@ npm run e2e
 ```powershell
 cd backend
 .\.venv\Scripts\python.exe -m evals.run_evaluation
+.\.venv\Scripts\python.exe -m scripts.import_feedback_candidates
 .\.venv\Scripts\python.exe -m scripts.verify_langfuse_trace
 .\.venv\Scripts\python.exe -m scripts.verify_otel_chain
 ```

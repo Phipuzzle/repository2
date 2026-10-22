@@ -186,6 +186,18 @@ async def main() -> None:
         action="store_true",
         help="Only validate that every golden SQL executes",
     )
+    parser.add_argument(
+        "--golden-only",
+        dest="self_check",
+        action="store_true",
+        help="Alias for --self-check; validate golden SQL without calling the model",
+    )
+    parser.add_argument(
+        "--threshold",
+        type=float,
+        default=0.0,
+        help="Fail when any aggregate accuracy is below this value",
+    )
     args = parser.parse_args()
 
     settings = get_settings()
@@ -233,6 +245,10 @@ async def main() -> None:
         encoding="utf-8",
     )
     print(json.dumps(summary["accuracy"], ensure_ascii=False, indent=2))
+    if args.threshold > 0:
+        lowest = min(summary["accuracy"].values())
+        if lowest < args.threshold:
+            raise SystemExit(f"Evaluation gate failed: {lowest:.4f} < {args.threshold}")
 
 
 if __name__ == "__main__":
