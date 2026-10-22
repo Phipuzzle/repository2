@@ -720,7 +720,7 @@ npm run e2e:live
 
 ### 阶段 15：部署与工程化
 
-- [ ] 验证 backend/frontend 镜像构建（当前环境 Docker Hub 网络受限）；
+- [x] 验证 backend/frontend 镜像构建；
 - [x] 增加前后端 CI 流水线；
 - [x] 补充多环境配置与迁移演练；
 - [x] 完善健康检查、启动顺序和优雅停止。
