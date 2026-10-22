@@ -86,16 +86,36 @@ async def evaluate_case(
         engine=engine,
         adapter=adapter,
     )
-    final = await graph.ainvoke(
-        {
-            "run_id": f"eval-{case['id']}-{datetime.now(UTC).isoformat()}",
-            "user_id": str(user_id),
+    try:
+        final = await graph.ainvoke(
+            {
+                "run_id": f"eval-{case['id']}-{datetime.now(UTC).isoformat()}",
+                "user_id": str(user_id),
+                "question": case["question"],
+                "status": "streaming",
+                "approved": False,
+                "sql": "",
+            }
+        )
+    except Exception as exc:
+        return {
+            "id": case["id"],
+            "category": case["category"],
             "question": case["question"],
-            "status": "streaming",
-            "approved": False,
+            "status": "failed",
             "sql": "",
+            "insight": "",
+            "metrics": {
+                "sql_execution_accuracy": 0.0,
+                "result_accuracy": 0.0,
+                "permission_accuracy": 0.0,
+                "chart_accuracy": 0.0,
+                "sql_semantic_accuracy": 0.0,
+            },
+            "cost_estimated": None,
+            "model": None,
+            "error": str(exc)[:500],
         }
-    )
 
     actual_sql = str(final.get("sql", ""))
     actual_rows = final.get("result_rows") or []

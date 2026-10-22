@@ -84,8 +84,10 @@ cd backend
 cd backend
 pip install -e ".[embeddings]"
 $env:EMBEDDING_PROVIDER = "local"
-$env:EMBEDDING_MODEL_ID = "BAAI/bge-small-zh-v1.5"
+modelscope download --model BAAI/bge-small-zh-v1.5 --local_dir .models\bge-small-zh-v1.5
+$env:EMBEDDING_MODEL_ID = ".models\bge-small-zh-v1.5"
+$env:EMBEDDING_DIMENSION = "512"
 .\.venv\Scripts\python.exe -m scripts.reindex_metadata
 ```
 
-模型会从 Hugging Face 下载到本地缓存；也可把 `EMBEDDING_MODEL_ID` 改为 ModelScope 可用的同尺寸模型。
+模型从 ModelScope 下载到 `backend/.models/bge-small-zh-v1.5`，该目录已加入 `.gitignore`。如需其他模型，可调整 `EMBEDDING_MODEL_ID` 与 `EMBEDDING_DIMENSION`。
