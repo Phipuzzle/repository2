@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { AppShell } from "./AppShell";
@@ -19,11 +19,12 @@ vi.mock("../../features/query-run/api", async (importOriginal) => {
 });
 
 describe("AppShell", () => {
-  it("renders the foundation workspace", () => {
+  it("renders the foundation workspace and opens history on demand", () => {
     render(<AppShell />);
     expect(screen.getByText("Intelligent Data Agent")).toBeInTheDocument();
-    expect(screen.getByText("查询历史")).toBeInTheDocument();
     expect(screen.getByText("数据分析工作区")).toBeInTheDocument();
     expect(screen.getByRole("textbox")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /历史/ }));
+    expect(screen.getByRole("complementary", { name: "查询历史" })).toBeInTheDocument();
   });
 });

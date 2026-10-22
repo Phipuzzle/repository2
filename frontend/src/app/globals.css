@@ -72,11 +72,6 @@ textarea {
   margin: 0 !important;
   color: var(--ink) !important;
 }
-.desktop-history {
-  flex: 0 0 240px;
-  background: var(--surface);
-  border-right: 1px solid var(--line);
-}
 .history-sidebar {
   height: calc(100vh - 56px);
   padding: 18px 12px;
@@ -235,7 +230,7 @@ textarea {
 .composer {
   position: fixed;
   z-index: 10;
-  left: calc(240px + 24px);
+  left: 24px;
   right: calc(360px + 24px);
   bottom: 18px;
   padding: 12px 14px;
@@ -295,9 +290,6 @@ textarea {
   .app-header .ant-btn:nth-child(2) .anticon {
     font-size: 16px;
     margin: 0;
-  }
-  .desktop-history {
-    display: none;
   }
   .workspace-content {
     padding: 16px 12px 190px;

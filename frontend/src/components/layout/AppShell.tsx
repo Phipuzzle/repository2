@@ -158,7 +158,6 @@ function Workspace() {
         onSignOut={signOut}
       />
       <Layout>
-        <div className="desktop-history">{historyPanel}</div>
         <Content className="workspace-content">
           <main className="workspace-main">
             <div className="workspace-title">
