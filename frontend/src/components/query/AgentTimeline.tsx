@@ -12,6 +12,7 @@ const labels: Record<string, string> = {
   agent_started: "启动 Agent",
   intent_detected: "识别意图",
   context_retrieved: "检索上下文",
+  semantic_mapped: "语义映射",
   query_plan_ready: "生成计划",
   sql_generated: "生成 SQL",
   sql_validated: "校验 SQL",

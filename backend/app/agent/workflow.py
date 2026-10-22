@@ -14,6 +14,7 @@ from app.agent.prompts import CLASSIFY_SYSTEM, PLAN_SYSTEM, SQL_SYSTEM, SUMMARY_
 from app.agent.state import QueryRunState
 from app.agent.telemetry import get_tracer
 from app.core.config import get_settings
+from app.semantic.mapper import resolve_semantic_context
 from app.sql.validator import UnsafeQueryError, validate_read_query
 
 
@@ -57,19 +58,35 @@ def build_workflow(
             context = await retrieve_context(session, state["question"])
         return {"context": context}
 
+    async def semantic_map(state: QueryRunState) -> dict[str, Any]:
+        async with session_factory() as session:
+            semantic_context = await resolve_semantic_context(session, state["question"])
+        return {"semantic_context": semantic_context}
+
     async def plan(state: QueryRunState) -> dict[str, Any]:
+        semantic_context = state.get("semantic_context", "")
         result = await adapter.complete_json(
             model=state["model"],
             system=PLAN_SYSTEM,
-            user=f"问题：{state['question']}\nMetadata：\n{state['context']}",
+            user=(
+                f"问题：{state['question']}\n"
+                f"标准语义：\n{semantic_context}\n"
+                f"Metadata：\n{state['context']}"
+            ),
         )
         return {"plan": str(result.get("plan", ""))}
 
     async def generate_sql(state: QueryRunState) -> dict[str, Any]:
+        semantic_context = state.get("semantic_context", "")
         result = await adapter.complete_json(
             model=state["model"],
             system=SQL_SYSTEM,
-            user=f"问题：{state['question']}\n查询计划：{state['plan']}\nMetadata：\n{state['context']}",
+            user=(
+                f"问题：{state['question']}\n"
+                f"标准语义：\n{semantic_context}\n"
+                f"查询计划：{state['plan']}\n"
+                f"Metadata：\n{state['context']}"
+            ),
         )
         return {
             "sql": str(result.get("sql", "")),
@@ -211,6 +228,7 @@ def build_workflow(
     graph.add_node("classify", traced("classify", classify))
     graph.add_node("ask_clarification", traced("ask_clarification", clarification))
     graph.add_node("retrieve_context", traced("retrieve_context", retrieve))
+    graph.add_node("semantic_map", traced("semantic_map", semantic_map))
     graph.add_node("build_query_plan", traced("build_query_plan", plan))
     graph.add_node("generate_sql", traced("generate_sql", generate_sql))
     graph.add_node("validate_sql", traced("validate_sql", validate))
@@ -236,7 +254,8 @@ def build_workflow(
         {"clarification": "ask_clarification", "retrieve": "retrieve_context"},
     )
     graph.add_edge("ask_clarification", END)
-    graph.add_edge("retrieve_context", "build_query_plan")
+    graph.add_edge("retrieve_context", "semantic_map")
+    graph.add_edge("semantic_map", "build_query_plan")
     graph.add_edge("build_query_plan", "generate_sql")
     graph.add_edge("generate_sql", "validate_sql")
     graph.add_edge("validate_sql", "authorize_sql")

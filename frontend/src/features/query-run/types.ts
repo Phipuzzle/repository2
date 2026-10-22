@@ -13,6 +13,7 @@ export type QueryEventType =
   | "agent_started"
   | "intent_detected"
   | "context_retrieved"
+  | "semantic_mapped"
   | "query_plan_ready"
   | "sql_generated"
   | "sql_validated"

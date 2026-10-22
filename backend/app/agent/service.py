@@ -26,6 +26,7 @@ EVENTS = {
     "classify": ("intent_detected", "已识别查询意图"),
     "ask_clarification": ("clarification_required", "需要补充查询条件"),
     "retrieve_context": ("context_retrieved", "已检索指标和数据表上下文"),
+    "semantic_map": ("semantic_mapped", "已完成标准指标和维度映射"),
     "build_query_plan": ("query_plan_ready", "已生成查询计划"),
     "generate_sql": ("sql_generated", "已生成只读 SQL"),
     "validate_sql": ("sql_validated", "SQL 只读安全校验通过"),

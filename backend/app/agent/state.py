@@ -27,6 +27,7 @@ class QueryRunState(TypedDict, total=False):
     error: dict[str, Any] | str | None
     # Compatibility aliases used by the API event serializer.
     context: str
+    semantic_context: str
     plan: str
     sql: str
     sql_explanation: str

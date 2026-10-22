@@ -16,7 +16,15 @@ from app.db.models import (
     DemoRegion,
     Metric,
     Role,
+    SemanticDimension,
+    SemanticMapping,
+    SemanticMetric,
     TableMetadata,
+)
+from app.semantic.dictionary import (
+    SEMANTIC_DIMENSIONS,
+    SEMANTIC_MAPPINGS,
+    SEMANTIC_METRICS,
 )
 
 REGION_NAMES = (
@@ -157,6 +165,44 @@ async def _ensure_metadata(session: AsyncSession) -> None:
     await session.flush()
 
 
+async def _ensure_semantics(session: AsyncSession) -> None:
+    metric_by_name = {}
+    for item in SEMANTIC_METRICS:
+        metric = await session.scalar(
+            select(SemanticMetric).where(SemanticMetric.name == item["name"])
+        )
+        if metric is None:
+            metric = SemanticMetric(**item)
+            session.add(metric)
+            await session.flush()
+        metric_by_name[item["name"]] = metric
+
+    dimension_by_name = {}
+    for item in SEMANTIC_DIMENSIONS:
+        dimension = await session.scalar(
+            select(SemanticDimension).where(SemanticDimension.name == item["name"])
+        )
+        if dimension is None:
+            dimension = SemanticDimension(**item)
+            session.add(dimension)
+            await session.flush()
+        dimension_by_name[item["name"]] = dimension
+
+    for metric_name, dimension_names in SEMANTIC_MAPPINGS:
+        metric = metric_by_name[metric_name]
+        for dimension_name in dimension_names:
+            dimension = dimension_by_name[dimension_name]
+            existing = await session.scalar(
+                select(SemanticMapping.id).where(
+                    SemanticMapping.metric_id == metric.id,
+                    SemanticMapping.dimension_id == dimension.id,
+                )
+            )
+            if existing is None:
+                session.add(SemanticMapping(metric_id=metric.id, dimension_id=dimension.id))
+    await session.flush()
+
+
 async def _seed_orders(
     session: AsyncSession,
     *,
@@ -224,4 +270,5 @@ async def _seed_orders(
 async def seed_demo_data(session: AsyncSession) -> None:
     regions, products = await _ensure_dimensions(session)
     await _ensure_metadata(session)
+    await _ensure_semantics(session)
     await _seed_orders(session, regions=regions, products=products)

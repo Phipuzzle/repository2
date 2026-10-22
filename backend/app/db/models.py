@@ -277,3 +277,50 @@ class MetadataEmbedding(Base):
     model_id: Mapped[str] = mapped_column(String(255))
     version: Mapped[str] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class SemanticMetric(Base):
+    __tablename__ = "semantic_metrics"
+    __table_args__ = {"schema": "metadata"}
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    name: Mapped[str] = mapped_column(String(120), unique=True)
+    aliases: Mapped[list[str]] = mapped_column(JSONB, default=list)
+    formula: Mapped[str] = mapped_column(Text)
+    qualifier: Mapped[str] = mapped_column(Text, default="")
+    default_grain: Mapped[str] = mapped_column(String(40), default="")
+    chart_type: Mapped[str] = mapped_column(String(24), default="bar")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class SemanticDimension(Base):
+    __tablename__ = "semantic_dimensions"
+    __table_args__ = {"schema": "metadata"}
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    name: Mapped[str] = mapped_column(String(120), unique=True)
+    aliases: Mapped[list[str]] = mapped_column(JSONB, default=list)
+    table_name: Mapped[str] = mapped_column(String(63))
+    column_name: Mapped[str] = mapped_column(String(63))
+    dimension_type: Mapped[str] = mapped_column(String(24), default="categorical")
+    time_grain: Mapped[str | None] = mapped_column(String(24), nullable=True)
+
+
+class SemanticMapping(Base):
+    __tablename__ = "semantic_mappings"
+    __table_args__ = (
+        UniqueConstraint("metric_id", "dimension_id", name="uq_semantic_mapping_ref"),
+        {"schema": "metadata"},
+    )
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    metric_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("metadata.semantic_metrics.id", ondelete="CASCADE"),
+        index=True,
+    )
+    dimension_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("metadata.semantic_dimensions.id", ondelete="CASCADE"),
+        index=True,
+    )
