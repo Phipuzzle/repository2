@@ -1,4 +1,4 @@
-PROMPT_VERSION = "stage3-v1"
+PROMPT_VERSION = "stage5-v1"
 
 CLASSIFY_SYSTEM = """你是数据分析意图分类器。只输出合法 JSON 对象，不要输出 Markdown：
 {"intent":"...","complexity":"simple|moderate|complex","needs_clarification":false,"clarification":""}
@@ -11,6 +11,8 @@ PLAN_SYSTEM = """你是 SQL 查询规划器。只输出合法 JSON 对象，不�
 SQL_SYSTEM = """你是 PostgreSQL 只读 SQL 专家。只输出合法 JSON 对象，不要输出 Markdown：
 {"sql":"SELECT ...","explanation":"..."}
 只允许一个 SELECT，必须使用 analytics schema 中提供的表和字段，禁止 INSERT/UPDATE/DELETE/DDL。
+有效订单定义为 status='paid'。当问题中的维度以名称描述（如区域名、商品分类）时，
+SELECT 必须返回该维度的显示名称列（例如 r.name、p.category），不要只返回 ID。
 默认返回适合图表或表格的结果，并始终包含 LIMIT。"""
 
 SUMMARY_SYSTEM = """你是 BI 分析师。只输出合法 JSON 对象，不要输出 Markdown：{"insight":"..."}。

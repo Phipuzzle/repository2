@@ -2,7 +2,7 @@
 
 > 本文档是 `intelligent-data-agent-architecture.md` 的开发执行版，供后续分阶段实现使用。
 >
-> 当前状态：阶段 0 到阶段 4 已完成。前端已通过 OIDC PKCE 登录真实 FastAPI API，并完成查询创建、SSE 事件、断线续传、SQL/结果/ChartSpec、审批、取消、重试、反馈和异常状态联调。前端单元测试、类型检查、构建以及后端全量测试通过；Playwright 覆盖成功、审批、取消、重连、权限失败和空结果流程。
+> 当前状态：阶段 0 到阶段 5 已完成。评测集、四项准确率指标、Langfuse/OpenTelemetry 验证、Docker Compose 一键启动以及 MVP 验收清单和本地开发手册均已交付。
 
 ## 1. 开发目标与技术边界
 
@@ -509,19 +509,12 @@ playwright
 
 ## 7. Docker Compose 和本地运行
 
-`infra/docker-compose.yml` 首期只负责 PostgreSQL + pgvector。FastAPI、Next.js 和 Langfuse 使用本地命令启动，后续再加入完整 Compose 编排。
+`infra/docker-compose.yml` 提供 PostgreSQL + pgvector、Keycloak、Langfuse、后端和前端的一键启动。
 
 ```bash
-docker compose -f infra/docker-compose.yml up -d postgres
-
-cd backend
-pip install -e .
-uvicorn app.main:app --reload --port 8000
-
-cd frontend
-npm install
-Copy-Item .env.example .env.local
-npm run dev
+cd infra
+Copy-Item .env.example .env
+docker compose up -d --build
 ```
 
 默认地址：
@@ -531,7 +524,11 @@ Frontend: http://localhost:3000
 Backend:  http://localhost:8000
 OpenAPI:  http://localhost:8000/docs
 Postgres: localhost:5432
+Keycloak: http://localhost:8080
+Langfuse: http://localhost:3001
 ```
+
+需要单独调试后端或前端时，按 `docs/local-development.md` 启动对应服务。
 
 ## 8. 分阶段开发 Todo
 
@@ -643,13 +640,13 @@ npm run e2e:live
 
 ### 阶段 5：评测和 MVP 验收
 
-- [ ] 建立简单、聚合、复杂三类黄金问题；
-- [ ] 记录预期指标、SQL 语义、结果和图表；
-- [ ] 评测 SQL Execution Accuracy、Result Accuracy、Permission Accuracy 和 Chart Accuracy；
-- [ ] 在 Langfuse 中查看 Prompt、Trace、Token 和反馈；
-- [ ] 在 OpenTelemetry 中验证端到端链路；
-- [ ] 完成 Docker Compose 一键启动；
-- [ ] 完成 MVP 验收清单和本地开发手册。
+- [x] 建立简单、聚合、复杂三类黄金问题；
+- [x] 记录预期指标、SQL 语义、结果和图表；
+- [x] 评测 SQL Execution Accuracy、Result Accuracy、Permission Accuracy 和 Chart Accuracy；
+- [x] 在 Langfuse 中查看 Prompt、Trace、Token 和反馈；
+- [x] 在 OpenTelemetry 中验证端到端链路；
+- [x] 完成 Docker Compose 一键启动；
+- [x] 完成 MVP 验收清单和本地开发手册。
 
 ## 9. 测试策略和验收标准
 

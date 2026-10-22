@@ -1,7 +1,7 @@
 import asyncio
 
-from app.db.session import SessionLocal, dispose_engine
 from app.db.seed import seed_demo_data
+from app.db.session import SessionLocal, dispose_engine
 
 
 async def main() -> None:

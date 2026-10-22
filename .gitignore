@@ -6,6 +6,7 @@ __pycache__/
 .ruff_cache/
 .venv/
 backend/.env
+backend/evals/results.json
 infra/.env
 
 # Next.js / Node

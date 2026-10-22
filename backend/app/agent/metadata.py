@@ -50,6 +50,9 @@ async def retrieve_context(session: AsyncSession, question: str = "") -> str:
             if column.table_id == table.id
         )
     }
+    for table in tables:
+        if table.table_name in {"demo_regions", "demo_products"}:
+            table_names[table.id] = f"{table.schema_name}.{table.table_name}"
     if not table_names:
         table_names = {table.id: f"{table.schema_name}.{table.table_name}" for table in tables}
     lines = ["可用表和字段："]

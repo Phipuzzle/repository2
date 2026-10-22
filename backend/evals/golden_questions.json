@@ -1,0 +1,32 @@
+[
+  {
+    "id": "simple-monthly-east-sales",
+    "category": "simple",
+    "question": "查询今年华东区域各月的销售额和订单数",
+    "metric_names": ["月销售额", "订单数"],
+    "expected_result_notes": "按月份升序返回 12 行，每月一行；销售额为有效订单金额之和，订单数为有效订单数量。",
+    "golden_sql": "SELECT to_char(o.created_at, 'YYYY-MM') AS month, r.name AS region_name, SUM(o.total_amount) AS sales, COUNT(*) AS orders FROM analytics.demo_orders AS o JOIN analytics.demo_regions AS r ON r.id = o.region_id WHERE r.name = '华东' AND o.status = 'paid' AND EXTRACT(YEAR FROM o.created_at) = EXTRACT(YEAR FROM CURRENT_DATE) GROUP BY to_char(o.created_at, 'YYYY-MM'), r.name ORDER BY to_char(o.created_at, 'YYYY-MM')",
+    "required_terms": ["SUM", "total_amount", "COUNT", "demo_regions", "GROUP BY"],
+    "expected_chart": {"type": "line", "xField": "month", "yField": "sales"}
+  },
+  {
+    "id": "aggregate-region-sales-ranking",
+    "category": "aggregate",
+    "question": "统计今年各区域的订单数和总销售额，按销售额从高到低排列",
+    "metric_names": ["区域", "订单数", "总销售额"],
+    "expected_result_notes": "每个区域一行，按销售额降序；订单数为去重后的订单数量。",
+    "golden_sql": "SELECT r.name AS region, COUNT(o.id) AS orders, SUM(o.total_amount) AS sales FROM analytics.demo_orders AS o JOIN analytics.demo_regions AS r ON r.id = o.region_id WHERE o.status = 'paid' AND EXTRACT(YEAR FROM o.created_at) = EXTRACT(YEAR FROM CURRENT_DATE) GROUP BY r.name ORDER BY SUM(o.total_amount) DESC",
+    "required_terms": ["COUNT", "SUM", "demo_regions", "GROUP BY", "ORDER BY"],
+    "expected_chart": {"type": "bar", "xField": "region", "yField": "sales"}
+  },
+  {
+    "id": "complex-region-category-mix",
+    "category": "complex",
+    "question": "对比今年华东和华南各商品类别的销售额",
+    "metric_names": ["区域", "商品类别", "销售额"],
+    "expected_result_notes": "华东与华南两个区域，按商品类别分别汇总销售额。",
+    "golden_sql": "SELECT r.name AS region, p.category AS category, SUM(o.total_amount) AS sales FROM analytics.demo_orders AS o JOIN analytics.demo_regions AS r ON r.id = o.region_id JOIN analytics.demo_products AS p ON p.id = o.product_id WHERE o.status = 'paid' AND r.name IN ('华东', '华南') AND EXTRACT(YEAR FROM o.created_at) = EXTRACT(YEAR FROM CURRENT_DATE) GROUP BY r.name, p.category ORDER BY SUM(o.total_amount) DESC",
+    "required_terms": ["demo_products", "category", "SUM", "GROUP BY", "IN"],
+    "expected_chart": {"type": "bar", "xField": "region", "yField": "sales"}
+  }
+]
