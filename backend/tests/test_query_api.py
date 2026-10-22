@@ -255,6 +255,9 @@ async def test_feedback_metrics_audit_and_openapi(client: AsyncClient) -> None:
     assert any(
         item["action"] == "feedback.created" and item["run_id"] == run_id for item in audit.json()
     )
+    filtered_audit = await client.get("/api/v1/audit-logs?action=feedback.created")
+    assert filtered_audit.status_code == 200
+    assert all(item["action"] == "feedback.created" for item in filtered_audit.json())
 
     openapi = (await client.get("/openapi.json")).json()
     assert "/api/v1/query-runs/{run_id}/events" in openapi["paths"]

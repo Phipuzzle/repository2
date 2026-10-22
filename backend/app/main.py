@@ -14,6 +14,7 @@ from app.api.v1.query_runs import router as query_runs_router
 from app.core.config import get_settings
 from app.core.errors import unhandled_exception_handler
 from app.core.logging import configure_logging
+from app.core.rate_limit import RateLimitMiddleware
 from app.db.session import dispose_engine, engine
 
 
@@ -46,6 +47,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(RateLimitMiddleware)
 app.add_exception_handler(Exception, unhandled_exception_handler)
 app.include_router(health_router)
 app.include_router(query_runs_router)

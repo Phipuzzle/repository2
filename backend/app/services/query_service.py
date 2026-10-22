@@ -426,15 +426,18 @@ async def list_metrics(session: AsyncSession) -> list[MetricResponse]:
 
 
 async def list_audit_logs(
-    session: AsyncSession, limit: int, offset: int, user_id: UUID
+    session: AsyncSession,
+    limit: int,
+    offset: int,
+    user_id: UUID,
+    action: str | None = None,
 ) -> list[AuditLogResponse]:
+    query = select(AuditLog).where(AuditLog.user_id == user_id)
+    if action:
+        query = query.where(AuditLog.action == action)
     items = (
         await session.scalars(
-            select(AuditLog)
-            .where(AuditLog.user_id == user_id)
-            .order_by(AuditLog.created_at.desc())
-            .limit(limit)
-            .offset(offset)
+            query.order_by(AuditLog.created_at.desc()).limit(limit).offset(offset)
         )
     ).all()
     return [

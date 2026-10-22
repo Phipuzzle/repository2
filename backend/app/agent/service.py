@@ -160,7 +160,11 @@ async def run_agent(run_id: UUID, *, approved: bool = False) -> None:
             if run is None or run.status == "cancelled":
                 return
             run.status = "failed"
-            run.error = str(exc)[:1000]
+            run.error = (
+                "查询超时，已终止执行"
+                if "statement timeout" in str(exc).lower()
+                else str(exc)[:1000]
+            )
             run.completed_at = datetime.now(UTC)
             await add_event(
                 session, run, "run_failed", "Agent 执行失败", {"code": type(exc).__name__}
