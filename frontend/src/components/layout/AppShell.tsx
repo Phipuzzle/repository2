@@ -221,15 +221,11 @@ function Workspace() {
               status={current.status}
               onCancel={() => void cancel()}
               onRecompute={() => void recompute()}
-              onSubmit={(question) =>
+              conversationId={current.conversationId}
+              onSubmit={(question, conversationId) =>
                 void (current.status === "awaiting_clarification"
                   ? clarify(question)
-                  : submit(
-                      question,
-                      current.status === "completed"
-                        ? current.conversationId
-                        : null,
-                    ))
+                  : submit(question, conversationId))
               }
               onRetry={() => void retry()}
             />

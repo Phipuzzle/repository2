@@ -5,10 +5,11 @@ import type { QueryRunStatus } from "../../features/query-run/types";
 
 interface QueryComposerProps {
   status: QueryRunStatus;
-  onSubmit: (question: string) => void;
+  onSubmit: (question: string, conversationId: string | null) => void;
   onCancel: () => void;
   onRetry: () => void;
   onRecompute?: () => void;
+  conversationId?: string | null;
 }
 
 export function QueryComposer({
@@ -17,16 +18,18 @@ export function QueryComposer({
   onCancel,
   onRetry,
   onRecompute,
+  conversationId = null,
 }: QueryComposerProps) {
   const [value, setValue] = useState("");
   const busy = status === "submitting" || status === "streaming";
   const canRetry = status === "failed" || status === "cancelled";
-  const submit = () => {
+  const submit = (nextConversationId: string | null) => {
     if (value.trim()) {
-      onSubmit(value.trim());
+      onSubmit(value.trim(), nextConversationId);
       setValue("");
     }
   };
+  const canFollowUp = status === "completed" && Boolean(conversationId);
   const submitLabel =
     status === "awaiting_clarification" ? "提交补充条件" : "开始分析";
   return (
@@ -40,7 +43,7 @@ export function QueryComposer({
         onPressEnter={(event) => {
           if (!event.shiftKey) {
             event.preventDefault();
-            submit();
+            submit(canFollowUp ? conversationId : null);
           }
         }}
         placeholder="用自然语言描述你想了解的数据..."
@@ -69,6 +72,25 @@ export function QueryComposer({
           <Button onClick={onRetry} aria-label="重试">
             重试
           </Button>
+        ) : canFollowUp ? (
+          <>
+            <Button
+              type="primary"
+              icon={<SendOutlined />}
+              onClick={() => submit(conversationId)}
+              aria-label="追问"
+            >
+              追问
+            </Button>
+            <Button onClick={() => submit(null)} aria-label="新查询">
+              新查询
+            </Button>
+            {onRecompute && (
+              <Button onClick={onRecompute} aria-label="重新计算">
+                重新计算
+              </Button>
+            )}
+          </>
         ) : (
           <>
             {status === "completed" && onRecompute && (
@@ -79,7 +101,7 @@ export function QueryComposer({
             <Button
               type="primary"
               icon={<SendOutlined />}
-              onClick={submit}
+              onClick={() => submit(null)}
               disabled={!value.trim()}
             >
               {submitLabel}

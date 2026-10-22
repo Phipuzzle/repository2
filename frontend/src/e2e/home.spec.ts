@@ -443,7 +443,7 @@ test("chains a follow-up question in the same conversation", async ({
   await page
     .getByPlaceholder("用自然语言描述你想了解的数据...")
     .fill("只看华东");
-  await page.getByRole("button", { name: "开始分析" }).click();
+  await page.getByRole("button", { name: "追问" }).click();
   await expect(
     page.getByText("执行链路已完成", { exact: false }),
   ).toBeVisible();

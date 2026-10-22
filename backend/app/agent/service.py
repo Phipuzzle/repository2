@@ -8,6 +8,7 @@ from sqlalchemy import select
 from app.agent.model import DeepSeekModelAdapter
 from app.agent.telemetry import configure_telemetry, get_tracer
 from app.agent.workflow import build_workflow
+from app.core.config import get_settings
 from app.db.models import QueryRun
 from app.db.session import SessionLocal, engine
 from app.services.query_service import add_audit, add_event
@@ -78,23 +79,27 @@ async def _apply_update(run: QueryRun, update: dict[str, Any]) -> None:
 async def _conversation_context(session: Any, run: QueryRun) -> str:
     if run.conversation_id is None or run.turn_index == 0:
         return ""
-    previous = await session.scalar(
-        select(QueryRun)
-        .where(
-            QueryRun.conversation_id == run.conversation_id,
-            QueryRun.turn_index < run.turn_index,
-            QueryRun.status == "completed",
+    previous_runs = (
+        await session.scalars(
+            select(QueryRun)
+            .where(
+                QueryRun.conversation_id == run.conversation_id,
+                QueryRun.turn_index < run.turn_index,
+                QueryRun.status == "completed",
+            )
+            .order_by(QueryRun.turn_index.desc())
+            .limit(get_settings().conversation_context_turns)
         )
-        .order_by(QueryRun.turn_index.desc())
-        .limit(1)
-    )
-    if previous is None:
+    ).all()
+    previous_runs = list(reversed(previous_runs))
+    if not previous_runs:
         return ""
-    return (
-        f"上一轮问题：{previous.question}\n"
-        f"上一轮 SQL：{previous.sql}\n"
-        f"上一轮结论：{previous.insight}"
+    lines = ["对话语义摘要："]
+    lines.extend(
+        f"- 第 {item.turn_index} 轮问题：{item.question}；结论：{item.insight or '无'}"
+        for item in previous_runs
     )
+    return "\n".join(lines)
 
 
 async def run_agent(run_id: UUID, *, approved: bool = False) -> None:
