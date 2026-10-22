@@ -130,11 +130,19 @@ async function pkceChallenge(verifier: string): Promise<string> {
 
 async function tokenRequest(body: URLSearchParams): Promise<TokenResponse> {
   const { issuer } = config();
-  const response = await fetch(`${issuer}/protocol/openid-connect/token`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body,
-  });
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), 8_000);
+  let response: Response;
+  try {
+    response = await fetch(`${issuer}/protocol/openid-connect/token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body,
+      signal: controller.signal,
+    });
+  } finally {
+    window.clearTimeout(timer);
+  }
   if (!response.ok) {
     throw new AuthenticationRequiredError("无法完成身份验证，请重新登录。");
   }

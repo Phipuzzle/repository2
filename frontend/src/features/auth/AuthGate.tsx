@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Alert, Spin, Typography } from "antd";
 
 import {
+  AuthenticationRequiredError,
   beginOidcLogin,
   completeOidcLogin,
   getAccessToken,
@@ -33,6 +34,14 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
         await beginOidcLogin();
       } catch (authError) {
         if (cancelled) return;
+        if (authError instanceof AuthenticationRequiredError) {
+          window.sessionStorage.removeItem("ida.oidc.session");
+          window.sessionStorage.removeItem("ida.oidc.state");
+          window.sessionStorage.removeItem("ida.oidc.verifier");
+          setState("redirecting");
+          await beginOidcLogin();
+          return;
+        }
         setError(
           authError instanceof Error
             ? authError.message
