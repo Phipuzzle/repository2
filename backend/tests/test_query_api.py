@@ -8,7 +8,14 @@ from sqlalchemy import delete, select
 
 from app.core.authentication import get_current_user
 from app.core.config import get_settings
-from app.db.models import AuditLog, Feedback, QueryEvent, QueryRun, User
+from app.db.models import (
+    AuditLog,
+    EvaluationCandidate,
+    Feedback,
+    QueryEvent,
+    QueryRun,
+    User,
+)
 from app.db.session import SessionLocal, engine
 from app.main import app
 
@@ -252,6 +259,28 @@ async def test_feedback_metrics_audit_and_openapi(client: AsyncClient) -> None:
     openapi = (await client.get("/openapi.json")).json()
     assert "/api/v1/query-runs/{run_id}/events" in openapi["paths"]
     assert "/api/v1/feedback" in openapi["paths"]
+
+
+@pytest.mark.asyncio
+async def test_negative_feedback_creates_evaluation_candidate(client: AsyncClient) -> None:
+    created = await client.post(
+        "/api/v1/query-runs", json={"question": "[api-test] negative feedback"}
+    )
+    run_id = created.json()["id"]
+    feedback = await client.post(
+        "/api/v1/feedback",
+        json={"run_id": run_id, "rating": "negative", "comment": "result wrong"},
+    )
+    assert feedback.status_code == 201
+    feedback_id = UUID(feedback.json()["id"])
+
+    async with SessionLocal() as session:
+        candidate = await session.scalar(
+            select(EvaluationCandidate).where(EvaluationCandidate.feedback_id == feedback_id)
+        )
+        assert candidate is not None
+        assert candidate.question == "[api-test] negative feedback"
+        assert str(candidate.run_id) == run_id
 
 
 @pytest.mark.asyncio

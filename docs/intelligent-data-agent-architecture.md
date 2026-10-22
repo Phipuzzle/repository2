@@ -793,6 +793,7 @@ flowchart TB
 - 增加 `--threshold` 选项，准确率低于基线时使流水线失败；
 - 增加离线 `--golden-only` 或 `--self-check` 模式用于快速门禁；
 - 新增反馈候选导入脚本，把「结果错误」反馈沉淀为候选黄金问题；
+- 负面反馈自动写入 evaluation_candidates 候选表；
 - 评测报告作为流水线产物归档。
 
 验收：每次 Prompt、metadata 或授权改动都能自动得到准确率变化，回退可阻断合并。

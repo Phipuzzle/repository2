@@ -8,7 +8,7 @@ from pathlib import Path
 
 from sqlalchemy import select
 
-from app.db.models import Feedback, QueryRun
+from app.db.models import EvaluationCandidate
 from app.db.session import SessionLocal, dispose_engine
 
 OUTPUT_PATH = Path("evals/feedback_candidates.json")
@@ -17,24 +17,23 @@ OUTPUT_PATH = Path("evals/feedback_candidates.json")
 async def main() -> None:
     async with SessionLocal() as session:
         rows = (
-            await session.execute(
-                select(Feedback, QueryRun)
-                .join(QueryRun, QueryRun.id == Feedback.run_id)
-                .where(Feedback.rating == "negative")
-                .order_by(Feedback.created_at.desc())
+            await session.scalars(
+                select(EvaluationCandidate)
+                .where(EvaluationCandidate.reviewed.is_(False))
+                .order_by(EvaluationCandidate.created_at.desc())
                 .limit(500)
             )
         ).all()
 
     candidates = [
         {
-            "question": run.question,
-            "run_id": str(run.id),
-            "feedback_id": str(feedback.id),
-            "comment": feedback.comment,
-            "created_at": feedback.created_at.isoformat(),
+            "question": candidate.question,
+            "run_id": str(candidate.run_id) if candidate.run_id else None,
+            "feedback_id": str(candidate.feedback_id),
+            "comment": candidate.comment,
+            "created_at": candidate.created_at.isoformat(),
         }
-        for feedback, run in rows
+        for candidate in rows
     ]
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT_PATH.write_text(

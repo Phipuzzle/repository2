@@ -190,6 +190,19 @@ class Feedback(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class EvaluationCandidate(Base):
+    __tablename__ = "evaluation_candidates"
+    __table_args__ = {"schema": "metadata"}
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    question: Mapped[str] = mapped_column(Text)
+    run_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    feedback_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), unique=True, index=True)
+    comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reviewed: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class Metric(Base):
     __tablename__ = "metrics"
     __table_args__ = {"schema": "metadata"}

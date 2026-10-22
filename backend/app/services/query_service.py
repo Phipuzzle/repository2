@@ -9,7 +9,15 @@ from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.db.models import AuditLog, Conversation, Feedback, Metric, QueryEvent, QueryRun
+from app.db.models import (
+    AuditLog,
+    Conversation,
+    EvaluationCandidate,
+    Feedback,
+    Metric,
+    QueryEvent,
+    QueryRun,
+)
 from app.schemas.query_run import (
     AuditLogResponse,
     ChartSpecResponse,
@@ -357,6 +365,16 @@ async def create_feedback(
         run_id=run.id, user_id=user_id, rating=payload.rating, comment=payload.comment
     )
     session.add(feedback)
+    await session.flush()
+    if payload.rating == "negative":
+        session.add(
+            EvaluationCandidate(
+                question=run.question,
+                run_id=run.id,
+                feedback_id=feedback.id,
+                comment=payload.comment,
+            )
+        )
     await add_audit(
         session, "feedback.created", run.id, {"rating": payload.rating}, user_id=user_id
     )
