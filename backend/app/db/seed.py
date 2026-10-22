@@ -224,6 +224,7 @@ async def _seed_orders(
         if year_count:
             continue
 
+        orders: list[DemoOrder] = []
         for month in range(1, 13):
             for region_index, region in enumerate(regions):
                 for product_index, product in enumerate(products):
@@ -255,15 +256,19 @@ async def _seed_orders(
                             total_amount=amount,
                             status=status,
                         )
-                        session.add(order)
-                        await session.flush()
-                        session.add(
-                            DemoOrderItem(
-                                order_id=order.id,
-                                quantity=1 + (month + product_index + offset) % 3,
-                                unit_price=amount,
-                            )
-                        )
+                        orders.append(order)
+
+        session.add_all(orders)
+        await session.flush()
+        session.add_all(
+            DemoOrderItem(
+                order_id=order.id,
+                quantity=1
+                + (order.created_at.month + order.product_id % 3 + order.region_id % 3) % 3,
+                unit_price=order.total_amount,
+            )
+            for order in orders
+        )
     await session.commit()
 
 

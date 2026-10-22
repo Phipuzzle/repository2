@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     query_timeout_seconds: int = 15
     query_cache_ttl_seconds: int = 300
     conversation_context_turns: int = 5
-    demo_scale: int = 5
+    demo_scale: int = 20
     demo_years: int = 5
     sse_poll_interval_seconds: float = 0.5
     sse_heartbeat_seconds: int = 15
