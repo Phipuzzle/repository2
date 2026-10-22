@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+      - "feat/**"
+      - "test/**"
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: intelligent_data_agent
+          POSTGRES_USER: ida
+          POSTGRES_PASSWORD: ida
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ida -d intelligent_data_agent"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+asyncpg://ida:ida@localhost:5432/intelligent_data_agent
+      OIDC_ISSUER: http://localhost:8080/realms/ida
+      OIDC_AUDIENCE: intelligent-data-agent-api
+      OIDC_JWKS_URL: http://localhost:8080/realms/ida/protocol/openid-connect/certs
+      AGENT_ENABLED: "false"
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e ".[dev]"
+      - run: python -m alembic upgrade head
+      - run: python scripts/seed_demo_data.py
+      - run: python -m ruff check app tests evals scripts
+      - run: python -m pytest -q
