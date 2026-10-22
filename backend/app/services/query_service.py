@@ -9,7 +9,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.db.models import AuditLog, Feedback, Metric, QueryEvent, QueryRun
+from app.db.models import AuditLog, Conversation, Feedback, Metric, QueryEvent, QueryRun
 from app.schemas.query_run import (
     AuditLogResponse,
     ChartSpecResponse,
@@ -67,6 +67,8 @@ def serialize_run(run: QueryRun) -> QueryRunResponse:
         clarification=run.clarification,
         approvalReason=run.approval_reason,
         reconnectCount=run.reconnect_count,
+        conversationId=run.conversation_id,
+        turnIndex=run.turn_index,
         startedAt=run.created_at,
         completedAt=run.completed_at,
     )
@@ -104,6 +106,37 @@ async def add_audit(
     session.add(AuditLog(user_id=user_id, run_id=run_id, action=action, details=details or {}))
 
 
+async def resolve_conversation(
+    session: AsyncSession,
+    conversation_id: UUID | None,
+    user_id: UUID,
+) -> tuple[UUID, int]:
+    if conversation_id is None:
+        conversation = Conversation(user_id=user_id)
+        session.add(conversation)
+        await session.flush()
+        return conversation.id, 0
+
+    conversation = await session.scalar(
+        select(Conversation).where(
+            Conversation.id == conversation_id,
+            Conversation.user_id == user_id,
+        )
+    )
+    if conversation is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "conversation_not_found", "message": "Conversation not found"},
+        )
+    turn_index = int(
+        await session.scalar(
+            select(func.max(QueryRun.turn_index)).where(QueryRun.conversation_id == conversation_id)
+        )
+        or 0
+    )
+    return conversation.id, turn_index + 1
+
+
 async def create_run(
     session: AsyncSession,
     payload: QueryRunCreate,
@@ -112,7 +145,10 @@ async def create_run(
     bypass_cache: bool = False,
 ) -> QueryRunResponse:
     data_version = await get_data_version(session)
-    if not bypass_cache:
+    conversation_id, turn_index = await resolve_conversation(
+        session, payload.conversation_id, user_id
+    )
+    if not bypass_cache and payload.conversation_id is None:
         cached = await find_cached_run(
             session,
             user_id=user_id,
@@ -130,6 +166,8 @@ async def create_run(
         cache_key=build_cache_key(payload.question, data_version),
         data_version=data_version,
         cache_expires_at=cache_expires_at(),
+        conversation_id=conversation_id,
+        turn_index=turn_index,
     )
     session.add(run)
     await session.flush()

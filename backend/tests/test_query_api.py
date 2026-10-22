@@ -190,6 +190,21 @@ async def test_recompute_creates_a_new_run(client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
+async def test_conversation_follow_up_increments_turn(client: AsyncClient) -> None:
+    first = await client.post("/api/v1/query-runs", json={"question": "[api-test] first turn"})
+    conversation_id = first.json()["conversationId"]
+    assert conversation_id is not None
+    assert first.json()["turnIndex"] == 0
+
+    second = await client.post(
+        "/api/v1/query-runs",
+        json={"question": "[api-test] follow up", "conversation_id": conversation_id},
+    )
+    assert second.json()["conversationId"] == conversation_id
+    assert second.json()["turnIndex"] == 1
+
+
+@pytest.mark.asyncio
 async def test_sse_replays_events_and_respects_last_event_id(client: AsyncClient) -> None:
     created = await client.post("/api/v1/query-runs", json={"question": "[api-test] replay"})
     run_id = created.json()["id"]

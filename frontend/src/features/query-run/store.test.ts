@@ -23,6 +23,8 @@ vi.mock("./api", () => {
     clarification: null,
     approvalReason: null,
     reconnectCount: 0,
+    conversationId: null,
+    turnIndex: 0,
     startedAt: new Date().toISOString(),
     completedAt: null,
   });

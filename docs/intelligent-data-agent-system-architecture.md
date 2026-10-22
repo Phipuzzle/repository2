@@ -701,11 +701,11 @@ npm run e2e:live
 
 ### 阶段 13：多轮对话与追问
 
-- [ ] 新增 Conversation 模型和迁移；
-- [ ] QueryRun 增加 `conversation_id` 与 `turn_index`；
-- [ ] 工作流注入上一轮上下文；
-- [ ] 前端支持会话内追问；
-- [ ] 增加多轮 API 测试和 Playwright 流程。
+- [x] 新增 Conversation 模型和迁移；
+- [x] QueryRun 增加 `conversation_id` 与 `turn_index`；
+- [x] 工作流注入上一轮上下文；
+- [x] 前端支持会话内追问；
+- [x] 增加多轮 API 测试和 Playwright 流程。
 
 ## 9. 测试策略和验收标准
 

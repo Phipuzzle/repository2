@@ -28,6 +28,7 @@ class QueryRunState(TypedDict, total=False):
     # Compatibility aliases used by the API event serializer.
     context: str
     semantic_context: str
+    conversation_context: str
     plan: str
     sql: str
     sql_explanation: str

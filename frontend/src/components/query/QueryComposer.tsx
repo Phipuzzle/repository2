@@ -69,19 +69,22 @@ export function QueryComposer({
           <Button onClick={onRetry} aria-label="重试">
             重试
           </Button>
-        ) : status === "completed" && onRecompute ? (
-          <Button onClick={onRecompute} aria-label="重新计算">
-            重新计算
-          </Button>
         ) : (
-          <Button
-            type="primary"
-            icon={<SendOutlined />}
-            onClick={submit}
-            disabled={!value.trim()}
-          >
-            {submitLabel}
-          </Button>
+          <>
+            {status === "completed" && onRecompute && (
+              <Button onClick={onRecompute} aria-label="重新计算">
+                重新计算
+              </Button>
+            )}
+            <Button
+              type="primary"
+              icon={<SendOutlined />}
+              onClick={submit}
+              disabled={!value.trim()}
+            >
+              {submitLabel}
+            </Button>
+          </>
         )}
       </Space>
     </section>

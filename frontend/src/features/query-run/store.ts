@@ -30,7 +30,7 @@ interface QueryStore {
   openRun: (id: string) => Promise<void>;
   toggleFavorite: (id: string) => void;
   reset: () => void;
-  submit: (question: string) => Promise<void>;
+  submit: (question: string, conversationId?: string | null) => Promise<void>;
   cancel: () => Promise<void>;
   approve: () => Promise<void>;
   recompute: () => Promise<void>;
@@ -74,6 +74,8 @@ const emptyRun = (): QueryRun => ({
   clarification: null,
   approvalReason: null,
   reconnectCount: 0,
+  conversationId: null,
+  turnIndex: 0,
   startedAt: null,
   completedAt: null,
 });
@@ -320,13 +322,16 @@ export const useQueryStore = create<QueryStore>((set, get) => {
       const question = get().current.question;
       const value = clarification.trim();
       if (!value) return;
-      await get().submit(`${question}。补充条件：${value}`);
+      await get().submit(
+        `${question}。补充条件：${value}`,
+        get().current.conversationId,
+      );
     },
     retry: async () => {
       const question = get().current.question;
-      if (question) await get().submit(question);
+      if (question) await get().submit(question, get().current.conversationId);
     },
-    submit: async (question) => {
+    submit: async (question, conversationId = null) => {
       activeController?.abort();
       activeController = new AbortController();
       const controller = activeController;
@@ -341,7 +346,11 @@ export const useQueryStore = create<QueryStore>((set, get) => {
         activeResultTab: "overview",
       });
       try {
-        const run = await createQueryRun(question, controller.signal);
+        const run = await createQueryRun(
+          question,
+          conversationId,
+          controller.signal,
+        );
         if (controller.signal.aborted) return;
         activeRunId = run.id;
         set({

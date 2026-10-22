@@ -18,6 +18,7 @@ QueryRunStatus = Literal[
 
 class QueryRunCreate(BaseModel):
     question: str = Field(min_length=1, max_length=4000)
+    conversation_id: UUID | None = None
 
     @field_validator("question")
     @classmethod
@@ -71,6 +72,8 @@ class QueryRunResponse(BaseModel):
     clarification: str | None
     approvalReason: str | None
     reconnectCount: int
+    conversationId: UUID | None
+    turnIndex: int
     startedAt: datetime | None
     completedAt: datetime | None
 

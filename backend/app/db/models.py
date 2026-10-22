@@ -89,6 +89,23 @@ class Permission(Base):
     column_masks: Mapped[dict[str, str]] = mapped_column(JSONB, default=dict)
 
 
+class Conversation(Base):
+    __tablename__ = "conversations"
+    __table_args__ = {"schema": "app"}
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("app.users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
 class QueryRun(Base):
     __tablename__ = "query_runs"
     __table_args__ = {"schema": "app"}
@@ -117,6 +134,13 @@ class QueryRun(Base):
     cache_expires_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    conversation_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("app.conversations.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    turn_index: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), index=True
     )

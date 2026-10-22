@@ -109,12 +109,16 @@ async function jsonRequest<T>(
 
 export async function createQueryRun(
   question: string,
+  conversationId?: string | null,
   signal?: AbortSignal,
 ): Promise<QueryRun> {
   return jsonRequest<QueryRun>("/query-runs", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ question }),
+    body: JSON.stringify({
+      question,
+      conversation_id: conversationId ?? null,
+    }),
     signal,
   });
 }

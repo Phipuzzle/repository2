@@ -3,6 +3,8 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
+from sqlalchemy import select
+
 from app.agent.model import DeepSeekModelAdapter
 from app.agent.telemetry import configure_telemetry, get_tracer
 from app.agent.workflow import build_workflow
@@ -73,6 +75,28 @@ async def _apply_update(run: QueryRun, update: dict[str, Any]) -> None:
             setattr(run, key, update[key])
 
 
+async def _conversation_context(session: Any, run: QueryRun) -> str:
+    if run.conversation_id is None or run.turn_index == 0:
+        return ""
+    previous = await session.scalar(
+        select(QueryRun)
+        .where(
+            QueryRun.conversation_id == run.conversation_id,
+            QueryRun.turn_index < run.turn_index,
+            QueryRun.status == "completed",
+        )
+        .order_by(QueryRun.turn_index.desc())
+        .limit(1)
+    )
+    if previous is None:
+        return ""
+    return (
+        f"上一轮问题：{previous.question}\n"
+        f"上一轮 SQL：{previous.sql}\n"
+        f"上一轮结论：{previous.insight}"
+    )
+
+
 async def run_agent(run_id: UUID, *, approved: bool = False) -> None:
     tracer = get_tracer()
     try:
@@ -84,6 +108,7 @@ async def run_agent(run_id: UUID, *, approved: bool = False) -> None:
                 if run is None or run.status == "cancelled":
                     return
                 run.status = "streaming"
+                conversation_context = await _conversation_context(session, run)
                 await add_event(session, run, "agent_started", "Agent 工作流已启动")
                 await session.commit()
                 state = {
@@ -93,6 +118,7 @@ async def run_agent(run_id: UUID, *, approved: bool = False) -> None:
                     "status": "streaming",
                     "approved": approved,
                     "sql": run.sql,
+                    "conversation_context": conversation_context,
                     "model": DeepSeekModelAdapter().model_for("complex" if approved else "simple"),
                 }
 

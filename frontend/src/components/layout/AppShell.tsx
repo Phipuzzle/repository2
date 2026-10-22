@@ -224,7 +224,12 @@ function Workspace() {
               onSubmit={(question) =>
                 void (current.status === "awaiting_clarification"
                   ? clarify(question)
-                  : submit(question))
+                  : submit(
+                      question,
+                      current.status === "completed"
+                        ? current.conversationId
+                        : null,
+                    ))
               }
               onRetry={() => void retry()}
             />

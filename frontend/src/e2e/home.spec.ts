@@ -3,9 +3,16 @@ import type { QueryRun, SSEEvent } from "../features/query-run/types";
 
 const API_ORIGIN = "http://localhost:8000";
 const RUN_ID = "0f79a2c2-fa44-4fe1-978a-cc10600da200";
+const CONVERSATION_ID = "9e1f4b6e-8d2a-4c57-b3b0-6f5a2d7c8e19";
 
 type Scenario =
-  "success" | "approval" | "cancel" | "reconnect" | "failure" | "empty";
+  | "success"
+  | "approval"
+  | "cancel"
+  | "reconnect"
+  | "failure"
+  | "empty"
+  | "followup";
 
 function event(id: number, type: SSEEvent["type"], message: string): SSEEvent {
   return {
@@ -30,6 +37,8 @@ function baseRun(question: string): QueryRun {
     clarification: null,
     approvalReason: null,
     reconnectCount: 0,
+    conversationId: null,
+    turnIndex: 0,
     startedAt: "2026-10-22T10:00:00Z",
     completedAt: null,
   };
@@ -133,6 +142,7 @@ async function prepareWorkspace(page: Page, scenario: Scenario) {
   let approved = false;
   let reconnectCalls = 0;
   let completed = false;
+  let capturedFollowUpConversationId: string | null = null;
 
   await page.route(`${API_ORIGIN}/api/v1/**`, async (route) => {
     const request = route.request();
@@ -168,12 +178,23 @@ async function prepareWorkspace(page: Page, scenario: Scenario) {
       return;
     }
     if (request.method() === "POST" && path === "/query-runs") {
-      const payload = request.postDataJSON() as { question: string };
+      const payload = request.postDataJSON() as {
+        question: string;
+        conversation_id?: string | null;
+      };
+      const isFollowUp = created;
       run = baseRun(payload.question);
       created = true;
       completed = false;
       approved = false;
       reconnectCalls = 0;
+      if (scenario === "followup") {
+        run.conversationId = CONVERSATION_ID;
+        run.turnIndex = isFollowUp ? 1 : 0;
+        if (isFollowUp) {
+          capturedFollowUpConversationId = payload.conversation_id ?? null;
+        }
+      }
       await cors(route, JSON.stringify(run), 201);
       return;
     }
@@ -307,6 +328,10 @@ async function prepareWorkspace(page: Page, scenario: Scenario) {
       404,
     );
   });
+
+  return {
+    getConversationId: () => capturedFollowUpConversationId,
+  };
 }
 
 async function ask(page: Page, question: string) {
@@ -404,4 +429,24 @@ test("renders a successful empty result without a chart", async ({ page }) => {
   await expect(page.getByText("没有可视化数据")).toBeVisible();
   await page.getByRole("tab", { name: "数据表" }).click();
   await expect(page.getByText("没有匹配的数据", { exact: true })).toBeVisible();
+});
+
+test("chains a follow-up question in the same conversation", async ({
+  page,
+}) => {
+  const state = await prepareWorkspace(page, "followup");
+  await ask(page, "查询今年各区域销售额");
+  await expect(
+    page.getByText("执行链路已完成", { exact: false }),
+  ).toBeVisible();
+
+  await page
+    .getByPlaceholder("用自然语言描述你想了解的数据...")
+    .fill("只看华东");
+  await page.getByRole("button", { name: "开始分析" }).click();
+  await expect(
+    page.getByText("执行链路已完成", { exact: false }),
+  ).toBeVisible();
+
+  expect(state.getConversationId()).toBe(CONVERSATION_ID);
 });

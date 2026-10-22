@@ -88,6 +88,8 @@ export interface QueryRun {
   clarification: string | null;
   approvalReason: string | null;
   reconnectCount: number;
+  conversationId: string | null;
+  turnIndex: number;
   startedAt: string | null;
   completedAt: string | null;
 }

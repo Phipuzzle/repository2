@@ -65,11 +65,13 @@ def build_workflow(
 
     async def plan(state: QueryRunState) -> dict[str, Any]:
         semantic_context = state.get("semantic_context", "")
+        conversation_context = state.get("conversation_context", "")
         result = await adapter.complete_json(
             model=state["model"],
             system=PLAN_SYSTEM,
             user=(
                 f"问题：{state['question']}\n"
+                f"对话上下文：\n{conversation_context}\n"
                 f"标准语义：\n{semantic_context}\n"
                 f"Metadata：\n{state['context']}"
             ),
@@ -78,11 +80,13 @@ def build_workflow(
 
     async def generate_sql(state: QueryRunState) -> dict[str, Any]:
         semantic_context = state.get("semantic_context", "")
+        conversation_context = state.get("conversation_context", "")
         result = await adapter.complete_json(
             model=state["model"],
             system=SQL_SYSTEM,
             user=(
                 f"问题：{state['question']}\n"
+                f"对话上下文：\n{conversation_context}\n"
                 f"标准语义：\n{semantic_context}\n"
                 f"查询计划：{state['plan']}\n"
                 f"Metadata：\n{state['context']}"
