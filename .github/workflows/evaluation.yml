@@ -69,6 +69,16 @@ jobs:
         working-directory: backend
         run: python -m evals.run_evaluation --threshold 0.8
 
+      - name: Verify observability SLO
+        if: ${{ secrets.LANGFUSE_HOST != '' }}
+        working-directory: backend
+        env:
+          LANGFUSE_ENABLED: "true"
+          LANGFUSE_HOST: ${{ secrets.LANGFUSE_HOST }}
+          LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
+          LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
+        run: python -m scripts.verify_slo
+
       - name: Archive evaluation report
         if: always()
         uses: actions/upload-artifact@v4
