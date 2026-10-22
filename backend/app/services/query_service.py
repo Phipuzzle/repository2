@@ -101,6 +101,21 @@ async def add_audit(
 async def create_run(
     session: AsyncSession, payload: QueryRunCreate, user_id: UUID
 ) -> QueryRunResponse:
+    cached = await session.scalar(
+        select(QueryRun)
+        .where(
+            QueryRun.user_id == user_id,
+            QueryRun.question == payload.question,
+            QueryRun.status == "completed",
+            QueryRun.result_rows.is_not(None),
+        )
+        .order_by(QueryRun.created_at.desc())
+        .limit(1)
+    )
+    if cached is not None:
+        await session.refresh(cached, attribute_names=["events"])
+        return serialize_run(cached)
+
     run = QueryRun(user_id=user_id, question=payload.question, status="submitting")
     session.add(run)
     await session.flush()

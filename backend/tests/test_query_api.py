@@ -1,4 +1,5 @@
 from collections.abc import AsyncIterator
+from datetime import UTC, datetime
 from uuid import UUID
 
 import pytest
@@ -123,6 +124,39 @@ async def test_query_run_create_read_list_cancel_and_result(client: AsyncClient)
     assert listed.status_code == 200
     assert listed.json()["total"] >= 1
     assert any(item["id"] == str(run_id) for item in listed.json()["items"])
+
+
+@pytest.mark.asyncio
+async def test_repeated_completed_question_returns_historical_result(
+    client: AsyncClient,
+) -> None:
+    first = await client.post(
+        "/api/v1/query-runs", json={"question": "[api-test] repeated question"}
+    )
+    run_id = first.json()["id"]
+
+    async with SessionLocal() as session:
+        run = await session.get(QueryRun, UUID(run_id))
+        assert run is not None
+        run.status = "completed"
+        run.sql = "SELECT 1"
+        run.result_rows = [{"sales": 128000}]
+        run.result_schema = [{"name": "sales", "type": "number", "label": "销售额"}]
+        run.result_total = 1
+        run.completed_at = run.completed_at or datetime.now(UTC)
+        await session.commit()
+
+    repeated = await client.post(
+        "/api/v1/query-runs", json={"question": "[api-test] repeated question"}
+    )
+    assert repeated.status_code == 201
+    assert repeated.json()["id"] == run_id
+    assert repeated.json()["status"] == "completed"
+    assert repeated.json()["result"]["rows"] == [{"sales": 128000}]
+
+    listed = await client.get("/api/v1/query-runs?limit=100")
+    matching = [item for item in listed.json()["items"] if item["id"] == run_id]
+    assert len(matching) == 1
 
 
 @pytest.mark.asyncio
