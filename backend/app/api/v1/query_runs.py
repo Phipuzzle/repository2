@@ -118,6 +118,23 @@ async def approve_query_run(
     return await set_run_state(session, run_id, "approve", user.id)
 
 
+@router.post(
+    "/{run_id}/recompute", response_model=QueryRunResponse, summary="Recompute a query run"
+)
+async def recompute_query_run(
+    run_id: UUID,
+    session: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> QueryRunResponse:
+    existing = await get_run_response(session, run_id, user.id)
+    return await create_run(
+        session,
+        QueryRunCreate(question=existing.question),
+        user.id,
+        bypass_cache=True,
+    )
+
+
 @router.post("/{run_id}/cancel", response_model=QueryRunResponse, summary="Cancel a query run")
 async def cancel_query_run(
     run_id: UUID,

@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     query_default_limit: int = 100
     query_max_limit: int = 1000
     query_timeout_seconds: int = 15
+    query_cache_ttl_seconds: int = 300
     demo_scale: int = 5
     demo_years: int = 5
     sse_poll_interval_seconds: float = 0.5

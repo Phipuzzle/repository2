@@ -160,6 +160,36 @@ async def test_repeated_completed_question_returns_historical_result(
 
 
 @pytest.mark.asyncio
+async def test_expired_cache_creates_a_new_run(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(get_settings(), "query_cache_ttl_seconds", -1)
+    first = await client.post("/api/v1/query-runs", json={"question": "[api-test] expired cache"})
+    first_id = first.json()["id"]
+    async with SessionLocal() as session:
+        run = await session.get(QueryRun, UUID(first_id))
+        assert run is not None
+        run.status = "completed"
+        run.result_rows = [{"sales": 1}]
+        run.result_schema = [{"name": "sales", "type": "number", "label": "销售额"}]
+        run.result_total = 1
+        await session.commit()
+
+    second = await client.post("/api/v1/query-runs", json={"question": "[api-test] expired cache"})
+    assert second.status_code == 201
+    assert second.json()["id"] != first_id
+
+
+@pytest.mark.asyncio
+async def test_recompute_creates_a_new_run(client: AsyncClient) -> None:
+    created = await client.post("/api/v1/query-runs", json={"question": "[api-test] recompute"})
+    run_id = created.json()["id"]
+    recomputed = await client.post(f"/api/v1/query-runs/{run_id}/recompute")
+    assert recomputed.status_code == 200
+    assert recomputed.json()["id"] != run_id
+
+
+@pytest.mark.asyncio
 async def test_sse_replays_events_and_respects_last_event_id(client: AsyncClient) -> None:
     created = await client.post("/api/v1/query-runs", json={"question": "[api-test] replay"})
     run_id = created.json()["id"]

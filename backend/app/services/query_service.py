@@ -24,6 +24,12 @@ from app.schemas.query_run import (
     ResultSchemaField,
     SSEEventResponse,
 )
+from app.services.cache_service import (
+    build_cache_key,
+    cache_expires_at,
+    find_cached_run,
+    get_data_version,
+)
 
 TERMINAL_STATUSES = {"completed", "failed", "cancelled"}
 
@@ -99,24 +105,32 @@ async def add_audit(
 
 
 async def create_run(
-    session: AsyncSession, payload: QueryRunCreate, user_id: UUID
+    session: AsyncSession,
+    payload: QueryRunCreate,
+    user_id: UUID,
+    *,
+    bypass_cache: bool = False,
 ) -> QueryRunResponse:
-    cached = await session.scalar(
-        select(QueryRun)
-        .where(
-            QueryRun.user_id == user_id,
-            QueryRun.question == payload.question,
-            QueryRun.status == "completed",
-            QueryRun.result_rows.is_not(None),
+    data_version = await get_data_version(session)
+    if not bypass_cache:
+        cached = await find_cached_run(
+            session,
+            user_id=user_id,
+            question=payload.question,
+            data_version=data_version,
         )
-        .order_by(QueryRun.created_at.desc())
-        .limit(1)
-    )
-    if cached is not None:
-        await session.refresh(cached, attribute_names=["events"])
-        return serialize_run(cached)
+        if cached is not None:
+            await session.refresh(cached, attribute_names=["events"])
+            return serialize_run(cached)
 
-    run = QueryRun(user_id=user_id, question=payload.question, status="submitting")
+    run = QueryRun(
+        user_id=user_id,
+        question=payload.question,
+        status="submitting",
+        cache_key=build_cache_key(payload.question, data_version),
+        data_version=data_version,
+        cache_expires_at=cache_expires_at(),
+    )
     session.add(run)
     await session.flush()
     await add_event(session, run, "submitted", "已提交查询")

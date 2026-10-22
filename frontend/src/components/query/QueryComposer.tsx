@@ -8,6 +8,7 @@ interface QueryComposerProps {
   onSubmit: (question: string) => void;
   onCancel: () => void;
   onRetry: () => void;
+  onRecompute?: () => void;
 }
 
 export function QueryComposer({
@@ -15,6 +16,7 @@ export function QueryComposer({
   onSubmit,
   onCancel,
   onRetry,
+  onRecompute,
 }: QueryComposerProps) {
   const [value, setValue] = useState("");
   const busy = status === "submitting" || status === "streaming";
@@ -55,18 +57,22 @@ export function QueryComposer({
           />
         </Tooltip>
         {busy ? (
-        <Button
-          danger
-          icon={<StopOutlined />}
-          onClick={onCancel}
-          aria-label="取消查询"
-        >
+          <Button
+            danger
+            icon={<StopOutlined />}
+            onClick={onCancel}
+            aria-label="取消查询"
+          >
             取消查询
           </Button>
         ) : canRetry ? (
-        <Button onClick={onRetry} aria-label="重试">
-          重试
-        </Button>
+          <Button onClick={onRetry} aria-label="重试">
+            重试
+          </Button>
+        ) : status === "completed" && onRecompute ? (
+          <Button onClick={onRecompute} aria-label="重新计算">
+            重新计算
+          </Button>
         ) : (
           <Button
             type="primary"

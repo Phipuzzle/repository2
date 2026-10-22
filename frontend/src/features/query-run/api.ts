@@ -171,6 +171,13 @@ export async function approveQueryRun(runId: string): Promise<QueryRun> {
   );
 }
 
+export async function recomputeQueryRun(runId: string): Promise<QueryRun> {
+  return jsonRequest<QueryRun>(
+    `/query-runs/${encodeURIComponent(runId)}/recompute`,
+    { method: "POST" },
+  );
+}
+
 export async function submitFeedback(
   runId: string,
   rating: "positive" | "negative",

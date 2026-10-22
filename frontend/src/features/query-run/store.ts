@@ -5,6 +5,7 @@ import {
   cancelQueryRun,
   createQueryRun,
   getQueryRun,
+  recomputeQueryRun,
   streamQueryEvents,
 } from "./api";
 import { mockMetricDefinitions } from "./mock";
@@ -32,6 +33,7 @@ interface QueryStore {
   submit: (question: string) => Promise<void>;
   cancel: () => Promise<void>;
   approve: () => Promise<void>;
+  recompute: () => Promise<void>;
   clarify: (clarification: string) => Promise<void>;
   retry: () => Promise<void>;
 }
@@ -282,6 +284,29 @@ export const useQueryStore = create<QueryStore>((set, get) => {
         activeController = new AbortController();
         activeRunId = approved.id;
         await followRun(approved.id);
+      } catch (error) {
+        set((state) => ({
+          current: {
+            ...state.current,
+            error: describeError(error),
+          },
+        }));
+      }
+    },
+    recompute: async () => {
+      const current = get().current;
+      if (current.id === "new") return;
+      try {
+        const run = await recomputeQueryRun(current.id);
+        activeController?.abort();
+        activeController = new AbortController();
+        activeRunId = run.id;
+        set({
+          current: run,
+          activeResultTab: "overview",
+          isInspectorOpen: true,
+        });
+        await followRun(run.id);
       } catch (error) {
         set((state) => ({
           current: {

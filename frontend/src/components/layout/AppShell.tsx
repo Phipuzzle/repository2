@@ -52,6 +52,7 @@ function Workspace() {
     cancel,
     retry,
     approve,
+    recompute,
     clarify,
   } = useQueryStore();
 
@@ -219,6 +220,7 @@ function Workspace() {
             <QueryComposer
               status={current.status}
               onCancel={() => void cancel()}
+              onRecompute={() => void recompute()}
               onSubmit={(question) =>
                 void (current.status === "awaiting_clarification"
                   ? clarify(question)

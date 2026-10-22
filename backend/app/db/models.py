@@ -112,6 +112,11 @@ class QueryRun(Base):
     clarification: Mapped[str | None] = mapped_column(Text, nullable=True)
     approval_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     reconnect_count: Mapped[int] = mapped_column(Integer, default=0)
+    cache_key: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    data_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    cache_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), index=True
     )
