@@ -1,4 +1,4 @@
-ARG NODE_IMAGE=registry.cn-hangzhou.aliyuncs.com/library/node:20-alpine
+ARG NODE_IMAGE=docker.m.daocloud.io/library/node:20-alpine
 FROM ${NODE_IMAGE} AS build
 
 WORKDIR /app
