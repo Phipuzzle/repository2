@@ -79,7 +79,11 @@ export function DataTable({ result }: { result: QueryResult | null }) {
       </div>
       <Table
         size="small"
-        pagination={{ pageSize: 5, showSizeChanger: false }}
+        pagination={{
+          pageSize: 10,
+          showSizeChanger: true,
+          pageSizeOptions: [10, 20, 50],
+        }}
         scroll={{ x: "max-content" }}
         rowKey="key"
         columns={columns}

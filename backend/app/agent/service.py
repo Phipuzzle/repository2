@@ -11,7 +11,7 @@ from app.agent.workflow import build_workflow
 from app.core.config import get_settings
 from app.db.models import QueryRun
 from app.db.session import SessionLocal, engine
-from app.services.query_service import add_audit, add_event
+from app.services.query_service import add_audit, add_event, notify_event_subscribers
 
 _tasks: dict[UUID, asyncio.Task[None]] = {}
 
@@ -116,6 +116,7 @@ async def run_agent(run_id: UUID, *, approved: bool = False) -> None:
                 conversation_context = await _conversation_context(session, run)
                 await add_event(session, run, "agent_started", "Agent 工作流已启动")
                 await session.commit()
+                await notify_event_subscribers(run.id)
                 state = {
                     "run_id": str(run.id),
                     "user_id": str(run.user_id) if run.user_id is not None else None,
@@ -150,6 +151,7 @@ async def run_agent(run_id: UUID, *, approved: bool = False) -> None:
                     if node_name == "completed":
                         current.completed_at = datetime.now(UTC)
                     await event_session.commit()
+                    await notify_event_subscribers(run_id)
     except asyncio.CancelledError:
         raise
     except Exception as exc:
@@ -171,3 +173,4 @@ async def run_agent(run_id: UUID, *, approved: bool = False) -> None:
                 user_id=run.user_id,
             )
             await session.commit()
+            await notify_event_subscribers(run_id)

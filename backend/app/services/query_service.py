@@ -40,6 +40,14 @@ from app.services.cache_service import (
 )
 
 TERMINAL_STATUSES = {"completed", "failed", "cancelled"}
+_event_conditions: dict[UUID, asyncio.Condition] = {}
+
+
+async def notify_event_subscribers(run_id: UUID) -> None:
+    condition = _event_conditions.get(run_id)
+    if condition is not None:
+        async with condition:
+            condition.notify_all()
 
 
 def serialize_event(event: QueryEvent) -> SSEEventResponse:
@@ -188,6 +196,7 @@ async def create_run(
         user_id=user_id,
     )
     await session.commit()
+    await notify_event_subscribers(run.id)
     settings = get_settings()
     if settings.agent_enabled:
         from app.agent.service import schedule_agent_run
@@ -275,6 +284,7 @@ async def set_run_state(
     await add_event(session, run, event_type, message)
     await add_audit(session, f"query_run.{action}", run.id, user_id=user_id)
     await session.commit()
+    await notify_event_subscribers(run.id)
     if action == "cancel":
         from app.agent.service import cancel_agent_run
 
@@ -326,6 +336,7 @@ async def record_reconnect(
         user_id=user_id,
     )
     await session.commit()
+    await notify_event_subscribers(run.id)
 
 
 async def stream_events(run_id: UUID, after_id: int, user_id: UUID) -> AsyncIterator[str]:
@@ -334,27 +345,39 @@ async def stream_events(run_id: UUID, after_id: int, user_id: UUID) -> AsyncIter
     settings = get_settings()
     last_id = after_id
     last_heartbeat = asyncio.get_running_loop().time()
-    while True:
-        async with SessionLocal() as session:
-            run = await session.scalar(
-                select(QueryRun).where(QueryRun.id == run_id, QueryRun.user_id == user_id)
-            )
-            if run is None:
+    condition = asyncio.Condition()
+    _event_conditions[run_id] = condition
+    try:
+        while True:
+            async with SessionLocal() as session:
+                run = await session.scalar(
+                    select(QueryRun).where(QueryRun.id == run_id, QueryRun.user_id == user_id)
+                )
+                if run is None:
+                    return
+                events = await list_events(session, run_id, last_id, user_id)
+                is_terminal = run.status in TERMINAL_STATUSES
+            for event in events:
+                last_id = event.sequence
+                data = serialize_event(event).model_dump_json()
+                yield f"id: {event.sequence}\nevent: {event.event_type}\ndata: {data}\n\n"
+            if is_terminal and not events:
+                yield "event: stream_end\ndata: {}\n\n"
                 return
-            events = await list_events(session, run_id, last_id, user_id)
-            is_terminal = run.status in TERMINAL_STATUSES
-        for event in events:
-            last_id = event.sequence
-            data = serialize_event(event).model_dump_json()
-            yield f"id: {event.sequence}\nevent: {event.event_type}\ndata: {data}\n\n"
-        if is_terminal and not events:
-            yield "event: stream_end\ndata: {}\n\n"
-            return
-        now = asyncio.get_running_loop().time()
-        if now - last_heartbeat >= settings.sse_heartbeat_seconds:
-            yield ": heartbeat\n\n"
-            last_heartbeat = now
-        await asyncio.sleep(settings.sse_poll_interval_seconds)
+            now = asyncio.get_running_loop().time()
+            if now - last_heartbeat >= settings.sse_heartbeat_seconds:
+                yield ": heartbeat\n\n"
+                last_heartbeat = now
+            try:
+                async with condition:
+                    await asyncio.wait_for(
+                        condition.wait(), timeout=settings.sse_poll_interval_seconds
+                    )
+            except TimeoutError:
+                pass
+    finally:
+        if _event_conditions.get(run_id) is condition:
+            _event_conditions.pop(run_id, None)
 
 
 async def create_feedback(

@@ -13,6 +13,10 @@ export function chartSpecToOption(spec: ChartSpec): EChartsOption {
   return {
     animationDuration: 280,
     aria: { enabled: true, decal: { show: false } },
+    dataZoom:
+      spec.dataset.length > 20
+        ? [{ type: "inside" }, { type: "slider", height: 18, bottom: 4 }]
+        : undefined,
     grid: { top: 24, right: 20, bottom: 36, left: 56, containLabel: true },
     tooltip: { trigger: "axis" },
     xAxis: {
