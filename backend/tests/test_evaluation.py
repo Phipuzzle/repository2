@@ -22,6 +22,20 @@ def test_result_accuracy_rejects_different_rows() -> None:
     assert result_accuracy([], []) == 1.0
 
 
+def test_result_accuracy_supports_non_exact_result_kinds() -> None:
+    assert result_accuracy([], [], expected_kind="empty") == 1.0
+    assert result_accuracy([{"a": 1}], [], expected_kind="non_empty") == 1.0
+    assert (
+        result_accuracy(
+            [{"region": "华东", "orders": 1}],
+            [],
+            expected_kind="invariants",
+            invariants={"min_rows": 1, "required_columns": ["region", "orders"]},
+        )
+        == 1.0
+    )
+
+
 def test_sql_semantic_accuracy_counts_required_terms() -> None:
     sql = "SELECT SUM(o.total_amount) FROM analytics.demo_orders o GROUP BY o.region_id"
     assert sql_semantic_accuracy(sql, ["SUM", "total_amount", "GROUP BY", "missing"]) == 0.75

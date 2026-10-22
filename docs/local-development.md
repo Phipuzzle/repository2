@@ -69,3 +69,17 @@ cd backend
 .\.venv\Scripts\python.exe -m scripts.verify_langfuse_trace
 .\.venv\Scripts\python.exe -m scripts.verify_otel_chain
 ```
+
+## 语义检索
+
+默认使用确定性的哈希 embedding，可在不下载模型的情况下运行。若要启用本地多语言模型：
+
+```powershell
+cd backend
+pip install -e ".[embeddings]"
+$env:EMBEDDING_PROVIDER = "local"
+$env:EMBEDDING_MODEL_ID = "BAAI/bge-small-zh-v1.5"
+.\.venv\Scripts\python.exe -m scripts.reindex_metadata
+```
+
+模型会从 Hugging Face 下载到本地缓存；也可把 `EMBEDDING_MODEL_ID` 改为 ModelScope 可用的同尺寸模型。

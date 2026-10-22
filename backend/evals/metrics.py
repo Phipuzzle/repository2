@@ -53,7 +53,31 @@ def canonical_rows(rows: list[dict[str, Any]]) -> set[tuple[tuple[str, Any], ...
     return set(normalized)
 
 
-def result_accuracy(actual: list[dict[str, Any]], expected: list[dict[str, Any]]) -> float:
+def result_accuracy(
+    actual: list[dict[str, Any]],
+    expected: list[dict[str, Any]],
+    expected_kind: str = "exact",
+    invariants: dict[str, Any] | None = None,
+) -> float:
+    if expected_kind == "empty":
+        return float(len(actual) == 0)
+    if expected_kind == "non_empty":
+        return float(len(actual) > 0)
+    if expected_kind == "invariants":
+        if not invariants:
+            return 0.0
+        min_rows = invariants.get("min_rows")
+        max_rows = invariants.get("max_rows")
+        if min_rows is not None and len(actual) < int(min_rows):
+            return 0.0
+        if max_rows is not None and len(actual) > int(max_rows):
+            return 0.0
+        required_columns = invariants.get("required_columns", [])
+        actual_kinds = {_column_kind(str(name)) for row in actual for name in row}
+        expected_kinds = {_column_kind(str(name)) for name in required_columns}
+        if not expected_kinds.issubset(actual_kinds):
+            return 0.0
+        return 1.0
     if not actual and not expected:
         return 1.0
     return float(canonical_rows(actual) == canonical_rows(expected))

@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     query_default_limit: int = 100
     query_max_limit: int = 1000
     query_timeout_seconds: int = 15
+    demo_scale: int = 5
+    demo_years: int = 5
     sse_poll_interval_seconds: float = 0.5
     sse_heartbeat_seconds: int = 15
     deepseek_api_key: str = ""
@@ -29,6 +31,11 @@ class Settings(BaseSettings):
     oidc_jwks_url: str = ""
     oidc_algorithms: list[str] = ["RS256"]
     oidc_jwks_cache_seconds: int = 300
+    embedding_provider: str = "hash"
+    embedding_model_id: str = "BAAI/bge-small-zh-v1.5"
+    embedding_dimension: int = 512
+    embedding_model_source: str = "huggingface"
+    metadata_retrieval_top_k: int = 8
     langfuse_enabled: bool = False
     langfuse_public_key: str = ""
     langfuse_secret_key: str = ""

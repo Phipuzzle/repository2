@@ -19,6 +19,8 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
+from app.db.vector import VectorType
+
 
 class Base(DeclarativeBase):
     pass
@@ -258,3 +260,20 @@ class DemoOrderItem(Base):
     )
     quantity: Mapped[int] = mapped_column(Integer)
     unit_price: Mapped[Any] = mapped_column(Numeric(12, 2))
+
+
+class MetadataEmbedding(Base):
+    __tablename__ = "embeddings"
+    __table_args__ = (
+        UniqueConstraint("content_kind", "ref_id", "version", name="uq_metadata_embeddings_ref"),
+        {"schema": "metadata"},
+    )
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    content_kind: Mapped[str] = mapped_column(String(24))
+    ref_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), index=True)
+    content_text: Mapped[str] = mapped_column(Text)
+    embedding: Mapped[list[float]] = mapped_column(VectorType(512), nullable=False)
+    model_id: Mapped[str] = mapped_column(String(255))
+    version: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

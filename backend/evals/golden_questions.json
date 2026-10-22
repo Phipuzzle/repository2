@@ -28,5 +28,72 @@
     "golden_sql": "SELECT r.name AS region, p.category AS category, SUM(o.total_amount) AS sales FROM analytics.demo_orders AS o JOIN analytics.demo_regions AS r ON r.id = o.region_id JOIN analytics.demo_products AS p ON p.id = o.product_id WHERE o.status = 'paid' AND r.name IN ('华东', '华南') AND EXTRACT(YEAR FROM o.created_at) = EXTRACT(YEAR FROM CURRENT_DATE) GROUP BY r.name, p.category ORDER BY SUM(o.total_amount) DESC",
     "required_terms": ["demo_products", "category", "SUM", "GROUP BY", "IN"],
     "expected_chart": {"type": "bar", "xField": "region", "yField": "sales"}
+  },
+  {
+    "id": "empty-no-such-region",
+    "category": "empty",
+    "question": "查询不存在的区域去年的销售额",
+    "metric_names": ["销售额"],
+    "expected_result_notes": "结果必须为空。",
+    "golden_sql": "SELECT r.name AS region, SUM(o.total_amount) AS sales FROM analytics.demo_orders AS o JOIN analytics.demo_regions AS r ON r.id = o.region_id WHERE r.name = '不存在的区域' AND o.status = 'paid' GROUP BY r.name",
+    "required_terms": ["SUM", "demo_regions", "GROUP BY"],
+    "expected_result_kind": "empty",
+    "expected_chart": null
+  },
+  {
+    "id": "non-empty-region-sales",
+    "category": "aggregate",
+    "question": "查询今年各区域的销售额",
+    "metric_names": ["区域", "销售额"],
+    "expected_result_notes": "今年每个区域一行，结果必须非空。",
+    "golden_sql": "SELECT r.name AS region, SUM(o.total_amount) AS sales FROM analytics.demo_orders AS o JOIN analytics.demo_regions AS r ON r.id = o.region_id WHERE o.status = 'paid' AND EXTRACT(YEAR FROM o.created_at) = EXTRACT(YEAR FROM CURRENT_DATE) GROUP BY r.name ORDER BY SUM(o.total_amount) DESC",
+    "required_terms": ["SUM", "demo_regions", "GROUP BY"],
+    "expected_result_kind": "non_empty",
+    "expected_chart": {"type": "bar", "xField": "region", "yField": "sales"}
+  },
+  {
+    "id": "filter-region-product-sales",
+    "category": "filter",
+    "question": "查询今年华东区域智能手表的销售额",
+    "metric_names": ["销售额"],
+    "expected_result_notes": "只返回华东区域智能手表在今年的销售额。",
+    "golden_sql": "SELECT r.name AS region, p.name AS product, SUM(o.total_amount) AS sales FROM analytics.demo_orders AS o JOIN analytics.demo_regions AS r ON r.id = o.region_id JOIN analytics.demo_products AS p ON p.id = o.product_id WHERE r.name = '华东' AND p.name = '智能手表' AND o.status = 'paid' AND EXTRACT(YEAR FROM o.created_at) = EXTRACT(YEAR FROM CURRENT_DATE) GROUP BY r.name, p.name",
+    "required_terms": ["demo_regions", "demo_products", "SUM", "GROUP BY"],
+    "expected_result_kind": "non_empty",
+    "expected_chart": {"type": "bar", "xField": "region", "yField": "sales"}
+  },
+  {
+    "id": "invariant-region-sales-count",
+    "category": "aggregate",
+    "question": "统计今年各区域的订单数",
+    "metric_names": ["区域", "订单数"],
+    "expected_result_notes": "今年每个区域恰好一行，区域和订单数列必须存在。",
+    "golden_sql": "SELECT r.name AS region, COUNT(o.id) AS orders FROM analytics.demo_orders AS o JOIN analytics.demo_regions AS r ON r.id = o.region_id WHERE o.status = 'paid' AND EXTRACT(YEAR FROM o.created_at) = EXTRACT(YEAR FROM CURRENT_DATE) GROUP BY r.name ORDER BY COUNT(o.id) DESC",
+    "required_terms": ["COUNT", "demo_regions", "GROUP BY"],
+    "expected_result_kind": "invariants",
+    "invariants": {"min_rows": 10, "max_rows": 10, "required_columns": ["region", "orders"]},
+    "expected_chart": {"type": "bar", "xField": "region", "yField": "orders"}
+  },
+  {
+    "id": "year-over-year-region-sales",
+    "category": "complex",
+    "question": "对比今年与去年各区域的销售额",
+    "metric_names": ["区域", "今年销售额", "去年销售额"],
+    "expected_result_notes": "每个区域一行，包含今年和去年两列销售额。",
+    "golden_sql": "SELECT r.name AS region, SUM(CASE WHEN EXTRACT(YEAR FROM o.created_at) = EXTRACT(YEAR FROM CURRENT_DATE) THEN o.total_amount ELSE 0 END) AS sales_this_year, SUM(CASE WHEN EXTRACT(YEAR FROM o.created_at) = EXTRACT(YEAR FROM CURRENT_DATE) - 1 THEN o.total_amount ELSE 0 END) AS sales_last_year FROM analytics.demo_orders AS o JOIN analytics.demo_regions AS r ON r.id = o.region_id WHERE o.status = 'paid' GROUP BY r.name ORDER BY r.name",
+    "required_terms": ["CASE", "EXTRACT", "SUM", "GROUP BY"],
+    "expected_result_kind": "non_empty",
+    "expected_chart": {"type": "bar", "xField": "region", "yField": "sales"}
+  },
+  {
+    "id": "product-category-order-count",
+    "category": "join",
+    "question": "查询今年各商品类别的订单数",
+    "metric_names": ["商品类别", "订单数"],
+    "expected_result_notes": "每个商品类别一行，订单数为有效订单数量。",
+    "golden_sql": "SELECT p.category AS category, COUNT(o.id) AS orders FROM analytics.demo_orders AS o JOIN analytics.demo_products AS p ON p.id = o.product_id WHERE o.status = 'paid' AND EXTRACT(YEAR FROM o.created_at) = EXTRACT(YEAR FROM CURRENT_DATE) GROUP BY p.category ORDER BY COUNT(o.id) DESC",
+    "required_terms": ["demo_products", "category", "COUNT", "GROUP BY"],
+    "expected_result_kind": "non_empty",
+    "expected_chart": {"type": "bar", "xField": "category", "yField": "orders"}
   }
 ]

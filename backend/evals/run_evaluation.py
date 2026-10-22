@@ -6,6 +6,7 @@ Usage from the backend directory:
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import json
 from datetime import UTC, datetime
@@ -84,7 +85,10 @@ async def evaluate_case(
 
     actual_sql = str(final.get("sql", ""))
     actual_rows = final.get("result_rows") or []
-    expected_rows, _ = await execute_read_query(engine, case["golden_sql"])
+    expected_kind = str(case.get("expected_result_kind", "exact"))
+    expected_rows: list[dict[str, Any]] = []
+    if expected_kind == "exact":
+        expected_rows, _ = await execute_read_query(engine, case["golden_sql"])
 
     permission_ok = False
     try:
@@ -98,7 +102,12 @@ async def evaluate_case(
     executed_ok = final.get("status") == "completed" and bool(actual_sql)
     metrics = {
         "sql_execution_accuracy": 1.0 if executed_ok else 0.0,
-        "result_accuracy": result_accuracy(actual_rows, expected_rows),
+        "result_accuracy": result_accuracy(
+            actual_rows,
+            expected_rows,
+            expected_kind=expected_kind,
+            invariants=case.get("invariants"),
+        ),
         "permission_accuracy": 1.0 if permission_ok else 0.0,
         "chart_accuracy": chart_accuracy(final.get("chart_spec"), case.get("expected_chart")),
         "sql_semantic_accuracy": sql_semantic_accuracy(actual_sql, case.get("required_terms", [])),
@@ -127,7 +136,19 @@ def aggregate(results: list[dict[str, Any]]) -> dict[str, float]:
     return {name: sum(item["metrics"][name] for item in results) / len(results) for name in names}
 
 
+def aggregate_by_category(results: list[dict[str, Any]]) -> dict[str, dict[str, float]]:
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for item in results:
+        grouped.setdefault(item["category"], []).append(item)
+    return {category: aggregate(items) for category, items in sorted(grouped.items())}
+
+
 async def main() -> None:
+    parser = argparse.ArgumentParser(description="Run the golden question evaluation")
+    parser.add_argument("--limit", type=int, default=0, help="Limit the number of cases")
+    parser.add_argument("--category", help="Only run cases with this category")
+    args = parser.parse_args()
+
     settings = get_settings()
     if not settings.agent_enabled:
         raise SystemExit("AGENT_ENABLED is not true; the evaluation requires the real agent")
@@ -135,6 +156,10 @@ async def main() -> None:
         raise SystemExit("DEEPSEEK_API_KEY is not configured")
 
     cases = load_cases()
+    if args.category:
+        cases = [case for case in cases if case["category"] == args.category]
+    if args.limit and args.limit > 0:
+        cases = cases[: args.limit]
     user_id = await ensure_analyst_user()
     adapter = DeepSeekModelAdapter()
     results = []
@@ -159,6 +184,7 @@ async def main() -> None:
         "generated_at": datetime.now(UTC).isoformat(),
         "cases": results,
         "accuracy": aggregate(results),
+        "by_category": aggregate_by_category(results),
     }
     RESULTS_PATH.write_text(
         json.dumps(summary, ensure_ascii=False, indent=2),
