@@ -20,6 +20,7 @@ from app.services.query_service import (
     get_run_response,
     list_events,
     list_runs,
+    record_reconnect,
     result_page,
     set_run_state,
     stream_events,
@@ -79,6 +80,8 @@ async def get_query_run_events(
 ) -> StreamingResponse:
     await list_events(session, run_id, -1, user.id)
     cursor = max(after_id, last_event_id or 0)
+    if cursor > 0:
+        await record_reconnect(session, run_id, cursor, user.id)
 
     async def event_stream() -> AsyncIterator[str]:
         async for event in stream_events(run_id, cursor, user.id):

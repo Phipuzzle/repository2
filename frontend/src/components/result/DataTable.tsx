@@ -35,11 +35,11 @@ export function DataTable({ result }: { result: QueryResult | null }) {
       .map((value) => ({ text: String(value), value: String(value) })),
     onFilter: (
       value: boolean | React.Key,
-      record: Record<string, string | number>,
+      record: Record<string, string | number | boolean | null>,
     ) => String(record[field.name]) === String(value),
     sorter: (
-      left: Record<string, string | number>,
-      right: Record<string, string | number>,
+      left: Record<string, string | number | boolean | null>,
+      right: Record<string, string | number | boolean | null>,
     ) => {
       const a = left[field.name];
       const b = right[field.name];
@@ -47,8 +47,12 @@ export function DataTable({ result }: { result: QueryResult | null }) {
         ? a - b
         : String(a).localeCompare(String(b), "zh-CN");
     },
-    render: (value: string | number) =>
-      field.type === "number" ? Number(value).toLocaleString("zh-CN") : value,
+    render: (value: string | number | boolean | null) =>
+      value === null
+        ? "—"
+        : field.type === "number"
+          ? Number(value).toLocaleString("zh-CN")
+          : String(value),
   }));
   return (
     <section aria-label="查询结果数据表">

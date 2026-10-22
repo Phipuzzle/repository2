@@ -27,6 +27,17 @@ body {
     "Segoe UI",
     sans-serif;
 }
+.auth-screen {
+  min-height: 100vh;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 16px;
+  padding: 24px;
+}
+.auth-screen .ant-alert {
+  max-width: 520px;
+}
 button,
 input,
 textarea {
@@ -110,6 +121,9 @@ textarea {
 }
 .workspace-title {
   margin-bottom: 18px;
+}
+.workspace-error {
+  margin: 0 0 14px;
 }
 .mobile-inspector-toggle {
   display: none;

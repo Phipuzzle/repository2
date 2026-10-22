@@ -23,7 +23,13 @@ echarts.use([
   CanvasRenderer,
 ]);
 
-export function ChartPanel({ spec }: { spec: ChartSpec | null }) {
+export function ChartPanel({
+  spec,
+  emptyResult = false,
+}: {
+  spec: ChartSpec | null;
+  emptyResult?: boolean;
+}) {
   const chartRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -45,7 +51,7 @@ export function ChartPanel({ spec }: { spec: ChartSpec | null }) {
       <div className="result-empty">
         <Empty
           image={Empty.PRESENTED_IMAGE_SIMPLE}
-          description={spec ? "没有可视化数据" : "等待图表数据"}
+          description={spec || emptyResult ? "没有可视化数据" : "等待图表数据"}
         />
       </div>
     );

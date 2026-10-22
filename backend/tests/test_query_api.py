@@ -143,6 +143,11 @@ async def test_sse_replays_events_and_respects_last_event_id(client: AsyncClient
     )
     assert "id: 1" not in resumed.text
     assert "id: 2" in resumed.text
+    assert "event: reconnected" in resumed.text
+
+    fetched = await client.get(f"/api/v1/query-runs/{run_id}")
+    assert fetched.json()["reconnectCount"] == 1
+    assert fetched.json()["events"][-1]["type"] == "reconnected"
 
 
 @pytest.mark.asyncio

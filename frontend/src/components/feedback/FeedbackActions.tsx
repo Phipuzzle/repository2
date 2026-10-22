@@ -13,18 +13,45 @@ import {
   LikeOutlined,
   MessageOutlined,
 } from "@ant-design/icons";
+import { useMutation } from "@tanstack/react-query";
 
-export function FeedbackActions() {
+import { submitFeedback } from "../../features/query-run/api";
+
+export function FeedbackActions({ runId }: { runId: string | null }) {
   const [feedback, setFeedback] = useState<"positive" | "negative" | null>(
     null,
   );
   const [isModalOpen, setModalOpen] = useState(false);
   const [comment, setComment] = useState("");
+  const feedbackMutation = useMutation({
+    mutationFn: ({
+      rating,
+      details,
+    }: {
+      rating: "positive" | "negative";
+      details?: string;
+    }) => {
+      if (!runId) throw new Error("请先完成查询");
+      return submitFeedback(runId, rating, details);
+    },
+    onSuccess: (_, variables) => {
+      setFeedback(variables.rating);
+      setModalOpen(false);
+      setComment("");
+      void message.success(variables.details ? "反馈已记录" : "感谢你的反馈");
+    },
+    onError: (error) => {
+      void message.error(
+        error instanceof Error ? error.message : "反馈提交失败",
+      );
+    },
+  });
   const submitComment = () => {
     if (!comment.trim()) return;
-    setModalOpen(false);
-    setComment("");
-    void message.success("反馈已记录");
+    feedbackMutation.mutate({
+      rating: feedback ?? "positive",
+      details: comment,
+    });
   };
   return (
     <>
@@ -39,9 +66,9 @@ export function FeedbackActions() {
               type={feedback === "positive" ? "primary" : "default"}
               icon={<LikeOutlined />}
               aria-label="结果正确"
+              disabled={!runId}
               onClick={() => {
-                setFeedback("positive");
-                void message.success("已标记为结果正确");
+                feedbackMutation.mutate({ rating: "positive" });
               }}
             />
           </Tooltip>
@@ -52,9 +79,9 @@ export function FeedbackActions() {
               type={feedback === "negative" ? "primary" : "default"}
               icon={<DislikeOutlined />}
               aria-label="结果错误"
+              disabled={!runId}
               onClick={() => {
-                setFeedback("negative");
-                void message.info("已标记为结果错误");
+                feedbackMutation.mutate({ rating: "negative" });
               }}
             />
           </Tooltip>
@@ -62,6 +89,7 @@ export function FeedbackActions() {
             size="small"
             icon={<MessageOutlined />}
             onClick={() => setModalOpen(true)}
+            disabled={!runId}
           >
             补充反馈
           </Button>
@@ -74,7 +102,10 @@ export function FeedbackActions() {
         onOk={submitComment}
         okText="提交"
         cancelText="取消"
-        okButtonProps={{ disabled: !comment.trim() }}
+        okButtonProps={{
+          disabled: !comment.trim(),
+          loading: feedbackMutation.isPending,
+        }}
       >
         <Input.TextArea
           value={comment}

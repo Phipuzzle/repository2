@@ -14,6 +14,7 @@ node_modules/
 out/
 frontend/.env.local
 frontend/.next-dev.log
+frontend/tsconfig.tsbuildinfo
 frontend/test-results/
 frontend/playwright-report/
 

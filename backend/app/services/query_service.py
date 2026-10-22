@@ -5,7 +5,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -224,6 +224,33 @@ async def list_events(
             )
         ).all()
     )
+
+
+async def record_reconnect(
+    session: AsyncSession, run_id: UUID, after_id: int, user_id: UUID
+) -> None:
+    run = await get_run(session, run_id, user_id)
+    await session.execute(
+        update(QueryRun)
+        .where(QueryRun.id == run_id, QueryRun.user_id == user_id)
+        .values(reconnect_count=QueryRun.reconnect_count + 1)
+    )
+    await session.refresh(run)
+    await add_event(
+        session,
+        run,
+        "reconnected",
+        "SSE 已重连，正在恢复事件",
+        {"after_id": after_id},
+    )
+    await add_audit(
+        session,
+        "query_run.sse_reconnected",
+        run.id,
+        {"after_id": after_id},
+        user_id=user_id,
+    )
+    await session.commit()
 
 
 async def stream_events(run_id: UUID, after_id: int, user_id: UUID) -> AsyncIterator[str]:

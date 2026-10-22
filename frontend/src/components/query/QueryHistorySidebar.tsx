@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button, Empty, List, Tag, Typography } from "antd";
+import { Button, Empty, List, Skeleton, Tag, Typography } from "antd";
 import {
   ClockCircleOutlined,
   DeleteOutlined,
@@ -11,6 +11,7 @@ import type { QueryHistoryItem } from "../../features/query-run/types";
 interface QueryHistorySidebarProps {
   history: QueryHistoryItem[];
   favoriteIds?: string[];
+  isLoading?: boolean;
   onSelect?: (item: QueryHistoryItem) => void;
   onClear?: () => void;
   onToggleFavorite?: (id: string) => void;
@@ -19,6 +20,7 @@ interface QueryHistorySidebarProps {
 export function QueryHistorySidebar({
   history,
   favoriteIds = [],
+  isLoading = false,
   onSelect,
   onClear,
   onToggleFavorite,
@@ -39,7 +41,9 @@ export function QueryHistorySidebar({
           onClick={() => setFavoritesOnly((value) => !value)}
         />
       </div>
-      {visibleHistory.length === 0 ? (
+      {isLoading ? (
+        <Skeleton active paragraph={{ rows: 5 }} title={false} />
+      ) : visibleHistory.length === 0 ? (
         <Empty
           image={Empty.PRESENTED_IMAGE_SIMPLE}
           description={favoritesOnly ? "暂无收藏查询" : "暂无查询记录"}
@@ -99,7 +103,7 @@ export function QueryHistorySidebar({
           )}
         />
       )}
-      {history.length > 0 && (
+      {history.length > 0 && onClear && (
         <Button
           type="link"
           danger

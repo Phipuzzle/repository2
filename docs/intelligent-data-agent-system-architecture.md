@@ -2,7 +2,7 @@
 
 > 本文档是 `intelligent-data-agent-architecture.md` 的开发执行版，供后续分阶段实现使用。
 >
-> 当前状态：阶段 0、阶段 1、阶段 2 和阶段 3 已完成。阶段 3 的 Agent 主链路、授权 SQL 改写、OIDC 身份映射、本地 Keycloak 配置、OpenTelemetry 埋点和 DeepSeek 接入均已实现并通过运行验收：Keycloak/PostgreSQL 启动、JWT 验证、用户登记、数据库迁移、Langfuse 端到端 Trace 和 DeepSeek 真实调用均已验证。
+> 当前状态：阶段 0 到阶段 4 已完成。前端已通过 OIDC PKCE 登录真实 FastAPI API，并完成查询创建、SSE 事件、断线续传、SQL/结果/ChartSpec、审批、取消、重试、反馈和异常状态联调。前端单元测试、类型检查、构建以及后端全量测试通过；Playwright 覆盖成功、审批、取消、重连、权限失败和空结果流程。
 
 ## 1. 开发目标与技术边界
 
@@ -520,6 +520,7 @@ uvicorn app.main:app --reload --port 8000
 
 cd frontend
 npm install
+Copy-Item .env.example .env.local
 npm run dev
 ```
 
@@ -600,14 +601,45 @@ cd frontend && npm run lint && npm run test && npm run build
 
 ### 阶段 4：前后端联调
 
-- [ ] 将 Mock Adapter 替换为真实 API Client；
-- [ ] 联调创建查询和 SSE；
-- [ ] 联调时间线、SQL、结果 Schema 和表格；
-- [ ] 联调 ChartSpec 和 ECharts；
-- [ ] 联调取消、确认、重试和反馈；
-- [ ] 联调异常、超时、空结果和无权限字段；
-- [ ] 验证 SSE 断线重连；
-- [ ] 增加 Playwright 端到端流程。
+- [x] 将 Mock Adapter 替换为真实 API Client；
+- [x] 联调创建查询和 SSE；
+- [x] 联调时间线、SQL、结果 Schema 和表格；
+- [x] 联调 ChartSpec 和 ECharts；
+- [x] 联调取消、确认、重试和反馈；
+- [x] 联调异常、超时、空结果和无权限字段；
+- [x] 验证 SSE 断线重连；
+- [x] 增加 Playwright 端到端流程。
+
+前端使用浏览器端 OIDC Authorization Code + PKCE。访问令牌只保存在当前标签页的 `sessionStorage`，过期前通过 refresh token 续期；SSE 使用带 `Authorization` 和 `Last-Event-ID` 的流式 `fetch`，服务端重连时递增 `reconnectCount` 并写入 `reconnected` 事件。Mock 代码仅保留为测试夹具，运行路径不再调用 Mock Adapter。
+
+阶段 4 验收命令：
+
+```bash
+cd backend
+pytest
+ruff check app tests
+
+cd frontend
+npm run lint
+npm run test
+npm run build
+npm run e2e
+```
+
+`npm run e2e` 使用确定性的 API 契约夹具覆盖 6 个核心浏览器流程。真实链路验证需要先启动 Keycloak、PostgreSQL、FastAPI 和前端：
+
+```powershell
+cd frontend
+$env:NEXT_PUBLIC_API_BASE_URL = "http://localhost:8000/api/v1"
+$env:NEXT_PUBLIC_OIDC_REDIRECT_URI = "http://localhost:3000/"
+npm run dev
+
+# 另一个终端
+cd frontend
+npm run e2e:live
+```
+
+实时流程会通过 Keycloak 登录、创建真实 QueryRun、等待 Agent 完成，并验证 SQL 与结果表；本地开发账号和密码沿用第 4.1 节的 Keycloak 配置。
 
 ### 阶段 5：评测和 MVP 验收
 

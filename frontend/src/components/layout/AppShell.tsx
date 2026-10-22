@@ -1,8 +1,21 @@
 "use client";
 
-import { useState } from "react";
-import { Button, Drawer, Layout, Space, Tabs, Typography } from "antd";
+import { useEffect, useRef, useState } from "react";
+import { Alert, Button, Drawer, Layout, Space, Tabs, Typography } from "antd";
 import { EyeOutlined } from "@ant-design/icons";
+import {
+  QueryClient,
+  QueryClientProvider,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+
+import { getAuthSession, signOut } from "../../features/auth/oidc";
+import {
+  getMetrics,
+  listQueryRuns,
+  toHistoryItem,
+} from "../../features/query-run/api";
 import { useQueryStore } from "../../features/query-run/store";
 import { AppHeader } from "./AppHeader";
 import { QueryHistorySidebar } from "../query/QueryHistorySidebar";
@@ -17,20 +30,22 @@ import { FeedbackActions } from "../feedback/FeedbackActions";
 
 const { Content } = Layout;
 
-export function AppShell() {
+function Workspace() {
+  const queryClient = useQueryClient();
   const [isMobileInspectorOpen, setMobileInspectorOpen] = useState(false);
+  const initializedHistory = useRef(false);
   const {
     current,
-    history,
     favoriteIds,
+    metrics,
     activeResultTab,
     isInspectorOpen,
     isHistoryOpen,
     setActiveResultTab,
     setInspectorOpen,
     setHistoryOpen,
-    selectHistory,
-    clearHistory,
+    setMetrics,
+    openRun,
     toggleFavorite,
     reset,
     submit,
@@ -39,6 +54,56 @@ export function AppShell() {
     approve,
     clarify,
   } = useQueryStore();
+
+  const historyQuery = useQuery({
+    queryKey: ["query-runs"],
+    queryFn: ({ signal }) => listQueryRuns(20, 0, signal),
+    staleTime: 10_000,
+    refetchInterval: 15_000,
+  });
+  const metricsQuery = useQuery({
+    queryKey: ["metrics"],
+    queryFn: ({ signal }) => getMetrics(signal),
+    staleTime: 60_000,
+  });
+
+  useEffect(() => {
+    if (!historyQuery.data) return;
+    const known = new Set(historyQuery.data.items.map((run) => run.id));
+    if (!initializedHistory.current && historyQuery.data.items[0]) {
+      initializedHistory.current = true;
+      void openRun(historyQuery.data.items[0].id);
+    } else if (!initializedHistory.current) {
+      initializedHistory.current = true;
+    }
+    if (
+      current.id !== "new" &&
+      !known.has(current.id) &&
+      !["submitting", "streaming"].includes(current.status)
+    ) {
+      void queryClient.invalidateQueries({ queryKey: ["query-runs"] });
+    }
+  }, [current.id, current.status, historyQuery.data, openRun, queryClient]);
+
+  useEffect(() => {
+    if (
+      [
+        "completed",
+        "failed",
+        "cancelled",
+        "awaiting_approval",
+        "awaiting_clarification",
+      ].includes(current.status)
+    ) {
+      void queryClient.invalidateQueries({ queryKey: ["query-runs"] });
+    }
+  }, [current.id, current.status, queryClient]);
+
+  useEffect(() => {
+    if (metricsQuery.data) setMetrics(metricsQuery.data);
+  }, [metricsQuery.data, setMetrics]);
+
+  const history = historyQuery.data?.items.map(toHistoryItem) ?? [];
   const resultItems = [
     {
       key: "overview",
@@ -48,7 +113,14 @@ export function AppShell() {
     {
       key: "chart",
       label: "图表",
-      children: <ChartPanel spec={current.chartSpec} />,
+      children: (
+        <ChartPanel
+          spec={current.chartSpec}
+          emptyResult={
+            current.status === "completed" && current.result?.total === 0
+          }
+        />
+      ),
     },
     {
       key: "table",
@@ -61,14 +133,30 @@ export function AppShell() {
     <QueryHistorySidebar
       history={history}
       favoriteIds={favoriteIds}
-      onSelect={(item) => selectHistory(item.id)}
-      onClear={clearHistory}
+      isLoading={historyQuery.isLoading}
+      onSelect={(item) => void openRun(item.id)}
       onToggleFavorite={toggleFavorite}
     />
   );
+  const requestError =
+    historyQuery.error instanceof Error
+      ? historyQuery.error.message
+      : metricsQuery.error instanceof Error
+        ? metricsQuery.error.message
+        : current.error &&
+            current.status === "failed" &&
+            current.events.length === 0
+          ? current.error
+          : null;
+
   return (
     <Layout className="app-layout">
-      <AppHeader onNew={reset} onHistory={() => setHistoryOpen(true)} />
+      <AppHeader
+        userLabel={getAuthSession()?.username ?? "已登录用户"}
+        onNew={reset}
+        onHistory={() => setHistoryOpen(true)}
+        onSignOut={signOut}
+      />
       <Layout>
         <div className="desktop-history">{historyPanel}</div>
         <Content className="workspace-content">
@@ -96,21 +184,29 @@ export function AppShell() {
                 详情
               </Button>
             </div>
+            {requestError && (
+              <Alert
+                className="workspace-error"
+                type="error"
+                showIcon
+                message={requestError}
+              />
+            )}
             <AgentTimeline run={current} />
-            {(current.status === "awaiting_approval" ||
-              current.status === "awaiting_clarification") && (
+            {current.status === "awaiting_approval" && (
               <Space className="decision-actions">
-                {current.status === "awaiting_approval" && (
-                  <Button type="primary" onClick={() => void approve()}>
-                    确认执行
-                  </Button>
-                )}
-                {current.status === "awaiting_clarification" && (
-                  <Button type="primary" onClick={() => void clarify()}>
-                    补充为今年各区域
-                  </Button>
-                )}
+                <Button type="primary" onClick={() => void approve()}>
+                  确认执行
+                </Button>
               </Space>
+            )}
+            {current.status === "awaiting_clarification" && (
+              <Alert
+                className="workspace-error"
+                type="warning"
+                showIcon
+                message="请在下方输入补充条件后提交。"
+              />
             )}
             <Tabs
               className="result-tabs"
@@ -120,11 +216,15 @@ export function AppShell() {
               }
               items={resultItems}
             />
-            <FeedbackActions />
+            <FeedbackActions runId={current.id === "new" ? null : current.id} />
             <QueryComposer
               status={current.status}
-              onSubmit={(question) => void submit(question)}
-              onCancel={cancel}
+              onCancel={() => void cancel()}
+              onSubmit={(question) =>
+                void (current.status === "awaiting_clarification"
+                  ? clarify(question)
+                  : submit(question))
+              }
               onRetry={() => void retry()}
             />
           </main>
@@ -133,6 +233,7 @@ export function AppShell() {
           <div className="desktop-inspector">
             <QueryInspector
               run={current}
+              metrics={metrics}
               onClose={() => setInspectorOpen(false)}
             />
           </div>
@@ -156,9 +257,30 @@ export function AppShell() {
       >
         <QueryInspector
           run={current}
+          metrics={metrics}
           onClose={() => setMobileInspectorOpen(false)}
         />
       </Drawer>
     </Layout>
+  );
+}
+
+export function AppShell() {
+  const [queryClient] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: {
+            retry: 1,
+            refetchOnWindowFocus: false,
+          },
+          mutations: { retry: 0 },
+        },
+      }),
+  );
+  return (
+    <QueryClientProvider client={queryClient}>
+      <Workspace />
+    </QueryClientProvider>
   );
 }

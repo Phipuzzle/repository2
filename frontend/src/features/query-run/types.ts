@@ -10,18 +10,24 @@ export type QueryRunStatus =
 
 export type QueryEventType =
   | "submitted"
+  | "agent_started"
   | "intent_detected"
   | "context_retrieved"
+  | "query_plan_ready"
   | "sql_generated"
   | "sql_validated"
+  | "sql_authorized"
   | "query_started"
+  | "cost_checked"
   | "result_preview"
+  | "insight_ready"
   | "chart_spec_ready"
   | "run_completed"
   | "clarification_required"
   | "approval_required"
   | "approval_granted"
   | "query_failed"
+  | "run_failed"
   | "run_cancelled"
   | "reconnected";
 
@@ -48,7 +54,7 @@ export interface ResultSchema {
 }
 
 export interface QueryResult {
-  rows: Array<Record<string, string | number>>;
+  rows: Array<Record<string, string | number | boolean | null>>;
   schema: ResultSchema[];
   total: number;
 }
@@ -83,4 +89,11 @@ export interface QueryRun {
   reconnectCount: number;
   startedAt: string | null;
   completedAt: string | null;
+}
+
+export interface QueryRunList {
+  items: QueryRun[];
+  total: number;
+  limit: number;
+  offset: number;
 }
