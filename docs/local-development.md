@@ -75,7 +75,10 @@ cd backend
 .\.venv\Scripts\python.exe -m scripts.import_feedback_candidates
 .\.venv\Scripts\python.exe -m scripts.verify_langfuse_trace
 .\.venv\Scripts\python.exe -m scripts.verify_otel_chain
+.\.venv\Scripts\python.exe -m scripts.verify_slo
 ```
+
+SLO 阈值通过 `SLO_AGENT_P95_SECONDS`、`SLO_AGENT_ERROR_RATE`、`SLO_DEEPSEEK_P95_SECONDS`、`SLO_DEEPSEEK_ERROR_RATE` 配置，超阈值时脚本以非零码退出。
 
 ## 语义检索
 

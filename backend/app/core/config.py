@@ -38,6 +38,11 @@ class Settings(BaseSettings):
     embedding_dimension: int = 512
     embedding_model_source: str = "huggingface"
     metadata_retrieval_top_k: int = 8
+    slo_lookback_minutes: int = 1440
+    slo_agent_p95_seconds: float = 30.0
+    slo_agent_error_rate: float = 0.2
+    slo_deepseek_p95_seconds: float = 20.0
+    slo_deepseek_error_rate: float = 0.2
     langfuse_enabled: bool = False
     langfuse_public_key: str = ""
     langfuse_secret_key: str = ""
