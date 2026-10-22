@@ -20,7 +20,7 @@
 ```
 
 Dockerfile 已内置清华 PyPI 镜像和 npmmirror，用于容器内依赖安装。
-基础镜像默认使用 `docker.mirrors.ustc.edu.cn`，可通过 `--build-arg PYTHON_IMAGE=...` 和 `--build-arg NODE_IMAGE=...` 覆盖。
+基础镜像默认使用 `registry.cn-hangzhou.aliyuncs.com`，可通过 `--build-arg PYTHON_IMAGE=...` 和 `--build-arg NODE_IMAGE=...` 覆盖。
 
 ```powershell
 cd infra
