@@ -38,6 +38,12 @@ Copy-Item .env.example .env
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8000
 ```
 
+若要重建 Demo 数据：
+
+```powershell
+.\.venv\Scripts\python.exe scripts\reset_demo_data.py
+```
+
 ## 前端本地运行
 
 ```powershell

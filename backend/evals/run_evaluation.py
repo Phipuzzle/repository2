@@ -42,6 +42,20 @@ def load_cases() -> list[dict[str, Any]]:
     return payload
 
 
+async def self_check(cases: list[dict[str, Any]]) -> None:
+    failures: list[str] = []
+    for case in cases:
+        try:
+            rows, _ = await execute_read_query(engine, case["golden_sql"])
+            print(f"[self-check] {case['id']}: {len(rows)} row(s)", flush=True)
+        except Exception as exc:
+            failures.append(case["id"])
+            print(f"[self-check] {case['id']}: FAILED {exc}", flush=True)
+    await dispose_engine()
+    if failures:
+        raise SystemExit(f"golden SQL self-check failed for: {', '.join(failures)}")
+
+
 async def ensure_analyst_user() -> UUID:
     async with SessionLocal() as session:
         await seed_demo_data(session)
@@ -147,6 +161,11 @@ async def main() -> None:
     parser = argparse.ArgumentParser(description="Run the golden question evaluation")
     parser.add_argument("--limit", type=int, default=0, help="Limit the number of cases")
     parser.add_argument("--category", help="Only run cases with this category")
+    parser.add_argument(
+        "--self-check",
+        action="store_true",
+        help="Only validate that every golden SQL executes",
+    )
     args = parser.parse_args()
 
     settings = get_settings()
@@ -160,6 +179,9 @@ async def main() -> None:
         cases = [case for case in cases if case["category"] == args.category]
     if args.limit and args.limit > 0:
         cases = cases[: args.limit]
+    if args.self_check:
+        await self_check(cases)
+        return
     user_id = await ensure_analyst_user()
     adapter = DeepSeekModelAdapter()
     results = []
