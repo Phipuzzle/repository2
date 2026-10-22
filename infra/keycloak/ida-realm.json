@@ -1,0 +1,56 @@
+{
+  "realm": "ida",
+  "enabled": true,
+  "displayName": "Intelligent Data Agent (Local Development)",
+  "clients": [
+    {
+      "clientId": "intelligent-data-agent-api",
+      "name": "Intelligent Data Agent API",
+      "enabled": true,
+      "bearerOnly": true,
+      "protocol": "openid-connect"
+    },
+    {
+      "clientId": "intelligent-data-agent-web",
+      "name": "Intelligent Data Agent Web (Local Development)",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": ["http://localhost:3000/*"],
+      "webOrigins": ["http://localhost:3000"],
+      "protocol": "openid-connect",
+      "protocolMappers": [
+        {
+          "name": "intelligent-data-agent-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "intelligent-data-agent-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "id": "00000000-0000-0000-0000-000000000028",
+      "username": "developer",
+      "enabled": true,
+      "email": "developer@example.local",
+      "emailVerified": true,
+      "firstName": "IDA",
+      "lastName": "Developer",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "ida-dev-password",
+          "temporary": false
+        }
+      ]
+    }
+  ]
+}

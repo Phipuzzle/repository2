@@ -5,6 +5,7 @@ from typing import Any
 from langgraph.graph import END, START, StateGraph
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from app.agent.authorization import authorize_read_query, load_policies
 from app.agent.chart import build_chart_spec
 from app.agent.executor import execute_read_query, explain_query
 from app.agent.metadata import retrieve_context
@@ -53,7 +54,7 @@ def build_workflow(
 
     async def retrieve(state: QueryRunState) -> dict[str, Any]:
         async with session_factory() as session:
-            context = await retrieve_context(session)
+            context = await retrieve_context(session, state["question"])
         return {"context": context}
 
     async def plan(state: QueryRunState) -> dict[str, Any]:
@@ -78,7 +79,8 @@ def build_workflow(
     async def validate(state: QueryRunState) -> dict[str, Any]:
         sql = state.get("sql", "")
         try:
-            return {"sql": validate_read_query(sql).sql}
+            validated = validate_read_query(sql)
+            return {"candidate_sql": validated.sql, "sql": validated.sql}
         except UnsafeQueryError as first_error:
             repaired = await adapter.complete_json(
                 model=state["model"],
@@ -90,12 +92,28 @@ def build_workflow(
                 ),
             )
             repaired_sql = str(repaired.get("sql", ""))
-            return {"sql": validate_read_query(repaired_sql).sql}
+            validated = validate_read_query(repaired_sql)
+            return {"candidate_sql": validated.sql, "sql": validated.sql}
 
     async def authorize(state: QueryRunState) -> dict[str, Any]:
-        # Authentication is introduced later; the demo role is read-only and the
-        # SQL validator's analytics allowlist is the current authorization boundary.
-        return {}
+        user_id = state.get("user_id")
+        async with session_factory() as session:
+            policies = await load_policies(session, user_id)
+        authorized_sql = authorize_read_query(
+            state["sql"],
+            policies,
+            user_id=user_id,
+            allow_anonymous=get_settings().agent_demo_anonymous_read,
+        )
+        validated = validate_read_query(authorized_sql)
+        update: dict[str, Any] = {
+            "authorized_sql": validated.sql,
+            "sql": validated.sql,
+            "authorization_policies": [policy.as_dict() for policy in policies],
+        }
+        if state.get("approved") and validated.sql != validate_read_query(state["sql"]).sql:
+            update["approved"] = False
+        return update
 
     async def cost_check(state: QueryRunState) -> dict[str, Any]:
         cost = await explain_query(engine, state["sql"])
@@ -112,6 +130,8 @@ def build_workflow(
         try:
             rows, schema = await execute_read_query(engine, sql)
         except Exception as first_error:
+            if state.get("retry_count", 0) >= 1:
+                raise
             repaired = await adapter.complete_json(
                 model=state["model"],
                 system=SQL_SYSTEM,
@@ -122,8 +142,35 @@ def build_workflow(
                 ),
             )
             sql = validate_read_query(str(repaired.get("sql", ""))).sql
-            await explain_query(engine, sql)
+            user_id = state.get("user_id")
+            async with session_factory() as session:
+                policies = await load_policies(session, user_id)
+            sql = validate_read_query(
+                authorize_read_query(
+                    sql,
+                    policies,
+                    user_id=user_id,
+                    allow_anonymous=get_settings().agent_demo_anonymous_read,
+                )
+            ).sql
+            cost = await explain_query(engine, sql)
+            approved_same_sql = state.get("approved", False) and sql == state.get("sql")
+            if cost > get_settings().cost_approval_threshold and not approved_same_sql:
+                return {
+                    "sql": sql,
+                    "query_cost": cost,
+                    "retry_count": 1,
+                    "status": "awaiting_approval",
+                    "approval_reason": f"修复后的查询成本 {cost:.0f} 超过审批阈值。",
+                }
             rows, schema = await execute_read_query(engine, sql)
+            return {
+                "sql": sql,
+                "result_rows": rows,
+                "result_schema": schema,
+                "result_total": len(rows),
+                "retry_count": 1,
+            }
         return {"sql": sql, "result_rows": rows, "result_schema": schema, "result_total": len(rows)}
 
     async def summarize(state: QueryRunState) -> dict[str, Any]:
@@ -154,6 +201,9 @@ def build_workflow(
     def after_cost(state: QueryRunState) -> str:
         return "approval" if state.get("status") == "awaiting_approval" else "execute"
 
+    def after_execute(state: QueryRunState) -> str:
+        return "approval" if state.get("status") == "awaiting_approval" else "summarize"
+
     async def approval(state: QueryRunState) -> dict[str, Any]:
         return {"status": "awaiting_approval"}
 
@@ -173,10 +223,12 @@ def build_workflow(
     graph.add_node("completed", traced("completed", completed))
 
     def start_route(state: QueryRunState) -> str:
-        return "execute_query" if state.get("approved") and state.get("sql") else "classify"
+        return "validate_sql" if state.get("approved") and state.get("sql") else "classify"
 
     graph.add_conditional_edges(
-        START, start_route, {"classify": "classify", "execute_query": "execute_query"}
+        START,
+        start_route,
+        {"classify": "classify", "validate_sql": "validate_sql"},
     )
     graph.add_conditional_edges(
         "classify",
@@ -193,7 +245,11 @@ def build_workflow(
         "cost_check", after_cost, {"approval": "approval_required", "execute": "execute_query"}
     )
     graph.add_edge("approval_required", END)
-    graph.add_edge("execute_query", "summarize_result")
+    graph.add_conditional_edges(
+        "execute_query",
+        after_execute,
+        {"approval": "approval_required", "summarize": "summarize_result"},
+    )
     graph.add_edge("summarize_result", "generate_chart_spec")
     graph.add_edge("generate_chart_spec", "completed")
     graph.add_edge("completed", END)

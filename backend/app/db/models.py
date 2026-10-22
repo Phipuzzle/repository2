@@ -4,7 +4,18 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, func
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -19,14 +30,25 @@ def uuid_pk() -> Mapped[uuid.UUID]:
 
 class User(Base):
     __tablename__ = "users"
-    __table_args__ = {"schema": "app"}
+    __table_args__ = (
+        UniqueConstraint("identity_issuer", "identity_subject", name="uq_users_oidc_identity"),
+        CheckConstraint(
+            "(identity_issuer IS NULL) = (identity_subject IS NULL)",
+            name="ck_users_oidc_identity_pair",
+        ),
+        {"schema": "app"},
+    )
 
     id: Mapped[uuid.UUID] = uuid_pk()
     email: Mapped[str] = mapped_column(String(320), unique=True, index=True)
     display_name: Mapped[str] = mapped_column(String(120))
+    identity_issuer: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    identity_subject: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    role_links: Mapped[list[UserRole]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    role_links: Mapped[list[UserRole]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class Role(Base):
@@ -42,8 +64,12 @@ class UserRole(Base):
     __tablename__ = "user_roles"
     __table_args__ = {"schema": "app"}
 
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("app.users.id", ondelete="CASCADE"), primary_key=True)
-    role_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("app.roles.id", ondelete="CASCADE"), primary_key=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("app.users.id", ondelete="CASCADE"), primary_key=True
+    )
+    role_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("app.roles.id", ondelete="CASCADE"), primary_key=True
+    )
     user: Mapped[User] = relationship(back_populates="role_links")
 
 
@@ -52,9 +78,13 @@ class Permission(Base):
     __table_args__ = {"schema": "app"}
 
     id: Mapped[uuid.UUID] = uuid_pk()
-    role_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("app.roles.id", ondelete="CASCADE"), index=True)
+    role_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("app.roles.id", ondelete="CASCADE"), index=True
+    )
     resource: Mapped[str] = mapped_column(String(255))
     action: Mapped[str] = mapped_column(String(40), default="read")
+    row_filter: Mapped[str | None] = mapped_column(Text, nullable=True)
+    column_masks: Mapped[dict[str, str]] = mapped_column(JSONB, default=dict)
 
 
 class QueryRun(Base):
@@ -62,7 +92,12 @@ class QueryRun(Base):
     __table_args__ = {"schema": "app"}
 
     id: Mapped[uuid.UUID] = uuid_pk()
-    user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("app.users.id", ondelete="SET NULL"), nullable=True, index=True)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("app.users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     question: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(32), default="streaming", index=True)
     sql: Mapped[str] = mapped_column(Text, default="")
@@ -75,18 +110,31 @@ class QueryRun(Base):
     clarification: Mapped[str | None] = mapped_column(Text, nullable=True)
     approval_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     reconnect_count: Mapped[int] = mapped_column(Integer, default=0)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    events: Mapped[list[QueryEvent]] = relationship(back_populates="run", cascade="all, delete-orphan", order_by="QueryEvent.sequence")
+    events: Mapped[list[QueryEvent]] = relationship(
+        back_populates="run",
+        cascade="all, delete-orphan",
+        order_by="QueryEvent.sequence",
+    )
 
 
 class QueryEvent(Base):
     __tablename__ = "query_events"
-    __table_args__ = (UniqueConstraint("run_id", "sequence", name="uq_query_events_run_sequence"), {"schema": "app"})
+    __table_args__ = (
+        UniqueConstraint("run_id", "sequence", name="uq_query_events_run_sequence"),
+        {"schema": "app"},
+    )
 
     id: Mapped[uuid.UUID] = uuid_pk()
-    run_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("app.query_runs.id", ondelete="CASCADE"), index=True)
+    run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("app.query_runs.id", ondelete="CASCADE"), index=True
+    )
     sequence: Mapped[int] = mapped_column(Integer)
     event_type: Mapped[str] = mapped_column(String(48))
     message: Mapped[str] = mapped_column(Text)
@@ -100,8 +148,12 @@ class Feedback(Base):
     __table_args__ = {"schema": "app"}
 
     id: Mapped[uuid.UUID] = uuid_pk()
-    run_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("app.query_runs.id", ondelete="CASCADE"), index=True)
-    user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("app.users.id", ondelete="SET NULL"), nullable=True)
+    run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("app.query_runs.id", ondelete="CASCADE"), index=True
+    )
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("app.users.id", ondelete="SET NULL"), nullable=True
+    )
     rating: Mapped[str] = mapped_column(String(16))
     comment: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -115,7 +167,9 @@ class Metric(Base):
     name: Mapped[str] = mapped_column(String(120), unique=True)
     definition: Mapped[str] = mapped_column(Text)
     source: Mapped[str] = mapped_column(String(255))
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
 
 class AuditLog(Base):
@@ -123,11 +177,23 @@ class AuditLog(Base):
     __table_args__ = {"schema": "audit"}
 
     id: Mapped[uuid.UUID] = uuid_pk()
-    user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("app.users.id", ondelete="SET NULL"), nullable=True, index=True)
-    run_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("app.query_runs.id", ondelete="SET NULL"), nullable=True, index=True)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("app.users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    run_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("app.query_runs.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     action: Mapped[str] = mapped_column(String(80), index=True)
     details: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True
+    )
 
 
 class TableMetadata(Base):
@@ -145,7 +211,9 @@ class ColumnMetadata(Base):
     __table_args__ = {"schema": "metadata"}
 
     id: Mapped[uuid.UUID] = uuid_pk()
-    table_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("metadata.tables.id", ondelete="CASCADE"), index=True)
+    table_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("metadata.tables.id", ondelete="CASCADE"), index=True
+    )
     column_name: Mapped[str] = mapped_column(String(63))
     data_type: Mapped[str] = mapped_column(String(80))
     description: Mapped[str] = mapped_column(Text, default="")
@@ -185,6 +253,8 @@ class DemoOrderItem(Base):
     __table_args__ = {"schema": "analytics"}
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    order_id: Mapped[int] = mapped_column(ForeignKey("analytics.demo_orders.id", ondelete="CASCADE"), index=True)
+    order_id: Mapped[int] = mapped_column(
+        ForeignKey("analytics.demo_orders.id", ondelete="CASCADE"), index=True
+    )
     quantity: Mapped[int] = mapped_column(Integer)
     unit_price: Mapped[Any] = mapped_column(Numeric(12, 2))

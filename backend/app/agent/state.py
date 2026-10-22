@@ -3,6 +3,7 @@ from typing import Any, Literal, TypedDict
 
 class QueryRunState(TypedDict, total=False):
     run_id: str
+    user_id: str | None
     question: str
     status: Literal[
         "submitting",
@@ -13,11 +14,18 @@ class QueryRunState(TypedDict, total=False):
         "failed",
         "cancelled",
     ]
-    intent: str
+    intent: dict[str, Any] | str
     complexity: Literal["simple", "moderate", "complex"]
     model: str
     needs_clarification: bool
     clarification: str
+    retrieved_context: list[dict[str, Any]]
+    query_plan: dict[str, Any] | str | None
+    candidate_sql: str | None
+    authorized_sql: str | None
+    retry_count: int
+    error: dict[str, Any] | str | None
+    # Compatibility aliases used by the API event serializer.
     context: str
     plan: str
     sql: str
@@ -30,4 +38,4 @@ class QueryRunState(TypedDict, total=False):
     result_total: int
     insight: str
     chart_spec: dict[str, Any] | None
-    error: str
+    authorization_policies: list[dict[str, Any]]

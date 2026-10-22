@@ -87,6 +87,7 @@ async def run_agent(run_id: UUID, *, approved: bool = False) -> None:
                 await session.commit()
                 state = {
                     "run_id": str(run.id),
+                    "user_id": str(run.user_id) if run.user_id is not None else None,
                     "question": run.question,
                     "status": "streaming",
                     "approved": approved,
@@ -130,5 +131,11 @@ async def run_agent(run_id: UUID, *, approved: bool = False) -> None:
             await add_event(
                 session, run, "run_failed", "Agent 执行失败", {"code": type(exc).__name__}
             )
-            await add_audit(session, "query_run.failed", run_id, {"error_type": type(exc).__name__})
+            await add_audit(
+                session,
+                "query_run.failed",
+                run_id,
+                {"error_type": type(exc).__name__},
+                user_id=run.user_id,
+            )
             await session.commit()

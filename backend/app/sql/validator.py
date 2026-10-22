@@ -53,7 +53,12 @@ def validate_read_query(sql: str, max_limit: int = 1000) -> ValidatedQuery:
         raise UnsafeQueryError("Only SELECT queries are allowed")
     if query.args.get("into") or query.args.get("locks") or query.args.get("fetch"):
         raise UnsafeQueryError("SELECT INTO, row locks, and FETCH are not allowed")
-    if any(isinstance(node, (exp.Insert, exp.Update, exp.Delete, exp.Create, exp.Drop, exp.Alter, exp.Command)) for node in query.walk()):
+    if any(
+        isinstance(
+            node, (exp.Insert, exp.Update, exp.Delete, exp.Create, exp.Drop, exp.Alter, exp.Command)
+        )
+        for node in query.walk()
+    ):
         raise UnsafeQueryError("Data modification and DDL statements are not allowed")
 
     cte_names = {cte.alias_or_name.lower() for cte in query.find_all(exp.CTE)}

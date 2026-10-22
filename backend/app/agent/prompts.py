@@ -1,3 +1,5 @@
+PROMPT_VERSION = "stage3-v1"
+
 CLASSIFY_SYSTEM = """你是数据分析意图分类器。只输出合法 JSON 对象，不要输出 Markdown：
 {"intent":"...","complexity":"simple|moderate|complex","needs_clarification":false,"clarification":""}
 complexity 按跨表、同比、复杂筛选或需要多步推理判断。问题条件不足时 needs_clarification 为 true。"""

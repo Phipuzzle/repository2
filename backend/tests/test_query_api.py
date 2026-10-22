@@ -5,37 +5,72 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy import delete, select
 
+from app.core.authentication import get_current_user
 from app.core.config import get_settings
-from app.db.models import AuditLog, Feedback, QueryEvent, QueryRun
+from app.db.models import AuditLog, Feedback, QueryEvent, QueryRun, User
 from app.db.session import SessionLocal, engine
+from app.main import app
+
+API_USER_ID = UUID("00000000-0000-0000-0000-000000000101")
+OTHER_API_USER_ID = UUID("00000000-0000-0000-0000-000000000102")
+
+
+def make_api_user(user_id: UUID, email: str, subject: str) -> User:
+    return User(
+        id=user_id,
+        email=email,
+        display_name="API test user",
+        identity_issuer="test-issuer",
+        identity_subject=subject,
+        is_active=True,
+    )
 
 
 @pytest.fixture(autouse=True)
 async def clean_api_test_data() -> AsyncIterator[None]:
     get_settings().agent_enabled = False
     await engine.dispose()
+    api_user = make_api_user(API_USER_ID, "api-test@example.invalid", "api-test-subject")
+    other_api_user = make_api_user(
+        OTHER_API_USER_ID, "api-test-other@example.invalid", "api-test-other-subject"
+    )
     async with SessionLocal() as session:
-        run_ids = list((await session.scalars(
-            select(QueryRun.id).where(QueryRun.question.like("[api-test]%"))
-        )).all())
+        for user in (api_user, other_api_user):
+            if await session.get(User, user.id) is None:
+                session.add(user)
+        await session.commit()
+        run_ids = list(
+            (
+                await session.scalars(
+                    select(QueryRun.id).where(QueryRun.question.like("[api-test]%"))
+                )
+            ).all()
+        )
         if run_ids:
             await session.execute(delete(Feedback).where(Feedback.run_id.in_(run_ids)))
             await session.execute(delete(AuditLog).where(AuditLog.run_id.in_(run_ids)))
             await session.execute(delete(QueryEvent).where(QueryEvent.run_id.in_(run_ids)))
             await session.execute(delete(QueryRun).where(QueryRun.id.in_(run_ids)))
         await session.commit()
+    app.dependency_overrides[get_current_user] = lambda: api_user
     yield
     async with SessionLocal() as session:
-        run_ids = list((await session.scalars(
-            select(QueryRun.id).where(QueryRun.question.like("[api-test]%"))
-        )).all())
+        run_ids = list(
+            (
+                await session.scalars(
+                    select(QueryRun.id).where(QueryRun.question.like("[api-test]%"))
+                )
+            ).all()
+        )
         if run_ids:
             await session.execute(delete(Feedback).where(Feedback.run_id.in_(run_ids)))
             await session.execute(delete(AuditLog).where(AuditLog.run_id.in_(run_ids)))
             await session.execute(delete(QueryEvent).where(QueryEvent.run_id.in_(run_ids)))
             await session.execute(delete(QueryRun).where(QueryRun.id.in_(run_ids)))
+        await session.execute(delete(User).where(User.id.in_([API_USER_ID, OTHER_API_USER_ID])))
         await session.commit()
     await engine.dispose()
+    app.dependency_overrides.pop(get_current_user, None)
 
 
 @pytest.mark.asyncio
@@ -51,7 +86,11 @@ async def test_query_run_create_read_list_cancel_and_result(client: AsyncClient)
     async with SessionLocal() as session:
         saved_run = await session.get(QueryRun, run_id)
         assert saved_run is not None
-        saved_run.result_rows = [{"month": "2026-01", "sales": 128000}, {"month": "2026-02", "sales": 146500}]
+        assert saved_run.user_id == API_USER_ID
+        saved_run.result_rows = [
+            {"month": "2026-01", "sales": 128000},
+            {"month": "2026-02", "sales": 146500},
+        ]
         saved_run.result_schema = [
             {"name": "month", "type": "string", "label": "月份"},
             {"name": "sales", "type": "number", "label": "销售额"},
@@ -63,7 +102,10 @@ async def test_query_run_create_read_list_cancel_and_result(client: AsyncClient)
     assert result.status_code == 200
     assert result.json() == {
         "rows": [{"month": "2026-02", "sales": 146500}],
-        "schema": [{"name": "month", "type": "string", "label": "月份"}, {"name": "sales", "type": "number", "label": "销售额"}],
+        "schema": [
+            {"name": "month", "type": "string", "label": "月份"},
+            {"name": "sales", "type": "number", "label": "销售额"},
+        ],
         "total": 2,
         "limit": 1,
         "offset": 1,
@@ -96,7 +138,9 @@ async def test_sse_replays_events_and_respects_last_event_id(client: AsyncClient
     assert "id: 2" in all_events.text
     assert "event: stream_end" in all_events.text
 
-    resumed = await client.get(f"/api/v1/query-runs/{run_id}/events", headers={"Last-Event-ID": "1"})
+    resumed = await client.get(
+        f"/api/v1/query-runs/{run_id}/events", headers={"Last-Event-ID": "1"}
+    )
     assert "id: 1" not in resumed.text
     assert "id: 2" in resumed.text
 
@@ -105,7 +149,9 @@ async def test_sse_replays_events_and_respects_last_event_id(client: AsyncClient
 async def test_feedback_metrics_audit_and_openapi(client: AsyncClient) -> None:
     created = await client.post("/api/v1/query-runs", json={"question": "[api-test] feedback"})
     run_id = created.json()["id"]
-    feedback = await client.post("/api/v1/feedback", json={"run_id": run_id, "rating": "positive", "comment": "Good"})
+    feedback = await client.post(
+        "/api/v1/feedback", json={"run_id": run_id, "rating": "positive", "comment": "Good"}
+    )
     assert feedback.status_code == 201
     assert feedback.json()["rating"] == "positive"
 
@@ -115,7 +161,9 @@ async def test_feedback_metrics_audit_and_openapi(client: AsyncClient) -> None:
 
     audit = await client.get("/api/v1/audit-logs?limit=20")
     assert audit.status_code == 200
-    assert any(item["action"] == "feedback.created" and item["run_id"] == run_id for item in audit.json())
+    assert any(
+        item["action"] == "feedback.created" and item["run_id"] == run_id for item in audit.json()
+    )
 
     openapi = (await client.get("/openapi.json")).json()
     assert "/api/v1/query-runs/{run_id}/events" in openapi["paths"]
@@ -148,3 +196,24 @@ async def test_approval_requires_pending_approval(client: AsyncClient) -> None:
     assert approved.status_code == 200
     assert approved.json()["status"] == "streaming"
     assert approved.json()["events"][-1]["type"] == "approval_granted"
+
+
+@pytest.mark.asyncio
+async def test_query_runs_and_feedback_are_isolated_by_owner(client: AsyncClient) -> None:
+    created = await client.post("/api/v1/query-runs", json={"question": "[api-test] private"})
+    run_id = created.json()["id"]
+    other_api_user = make_api_user(
+        OTHER_API_USER_ID, "api-test-other@example.invalid", "api-test-other-subject"
+    )
+    app.dependency_overrides[get_current_user] = lambda: other_api_user
+
+    detail = await client.get(f"/api/v1/query-runs/{run_id}")
+    events = await client.get(f"/api/v1/query-runs/{run_id}/events")
+    approval = await client.post(f"/api/v1/query-runs/{run_id}/approve")
+    feedback = await client.post("/api/v1/feedback", json={"run_id": run_id, "rating": "positive"})
+
+    assert detail.status_code == 404
+    assert events.status_code == 404
+    assert approval.status_code == 404
+    assert feedback.status_code == 404
+    assert (await client.get("/api/v1/query-runs")).json()["total"] == 0

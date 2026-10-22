@@ -2,7 +2,7 @@
 
 > 本文档是 `intelligent-data-agent-architecture.md` 的开发执行版，供后续分阶段实现使用。
 >
-> 当前状态：阶段 0、阶段 1、阶段 2 和阶段 3 已完成。阶段 3 已接入 LangGraph、DeepSeek Flash/Pro、只读 SQL 执行及 OpenTelemetry 到 Langfuse 的 trace 导出，并完成测试和真实模型调用验收。
+> 当前状态：阶段 0、阶段 1、阶段 2 和阶段 3 已完成。阶段 3 的 Agent 主链路、授权 SQL 改写、OIDC 身份映射、本地 Keycloak 配置、OpenTelemetry 埋点和 DeepSeek 接入均已实现并通过运行验收：Keycloak/PostgreSQL 启动、JWT 验证、用户登记、数据库迁移、Langfuse 端到端 Trace 和 DeepSeek 真实调用均已验证。
 
 ## 1. 开发目标与技术边界
 
@@ -171,11 +171,35 @@ DEEPSEEK_FLASH_MODEL=deepseek-flash
 DEEPSEEK_PRO_MODEL=deepseek-v4-pro
 DEEPSEEK_MAX_TOKENS=4096
 AGENT_ENABLED=true
+OIDC_ISSUER=https://identity.example.com/realms/ida
+OIDC_AUDIENCE=intelligent-data-agent-api
+OIDC_JWKS_URL=https://identity.example.com/realms/ida/protocol/openid-connect/certs
+```
+
+本地开发默认使用 Compose 中的 Keycloak realm，不需要先申请外部 OIDC 服务：
+
+```dotenv
+OIDC_ISSUER=http://localhost:8080/realms/ida
+OIDC_AUDIENCE=intelligent-data-agent-api
+OIDC_JWKS_URL=http://localhost:8080/realms/ida/protocol/openid-connect/certs
+```
+
+这三个值分别是 token 必须声明的签发者、API 的 audience 标识和用于下载公钥的 JWKS 地址。启动 `docker compose -f infra/docker-compose.yml up -d keycloak postgres` 后，Keycloak 会导入本地 `ida` realm。开发账号为 `developer`，密码为 `ida-dev-password`；只用于绑定到 localhost 的本地开发环境，不得复用于任何共享或生产环境。执行数据库迁移和 demo 数据初始化后，在 `backend` 目录运行 `python -m scripts.provision_dev_oidc_user`，把该固定开发身份登记到 `app.users` 并授予 demo analytics 表只读权限。若后端在容器中运行，应将三个 OIDC URL 的主机改为容器网络地址，并确保 token 的 issuer 仍与 Keycloak 对外发布的 issuer 完全一致。
+
+可用以下 PowerShell 命令从本地 Keycloak 获取 API access token；token 留在本机变量中，不要粘贴到聊天、日志或 Linear：
+
+```powershell
+$token = (Invoke-RestMethod -Method Post -Uri "http://localhost:8080/realms/ida/protocol/openid-connect/token" -ContentType "application/x-www-form-urlencoded" -Body @{ client_id = "intelligent-data-agent-web"; username = "developer"; password = "ida-dev-password"; grant_type = "password" }).access_token
+Invoke-RestMethod -Method Get -Uri "http://localhost:8000/api/v1/metrics" -Headers @{ Authorization = "Bearer $token" }
 ```
 
 `backend/.env` 已被 Git 忽略。不要将真实密钥写进 `.env.example`、代码、Linear、日志或提交记录。当前配置默认关闭 Agent；只有启用 Agent 且配置了密钥后，新查询才会启动工作流。DeepSeek 当前推荐的 Flash API 模型 ID 是 `deepseek-flash`，Pro API 模型 ID 是 `deepseek-v4-pro`；旧的 `deepseek-v4-flash` 仅作为兼容别名保留。模型 ID 可通过环境变量调整，以匹配 DeepSeek 账户实际开放的模型名称。JSON 模式使用 `/chat/completions`、`response_format: {"type":"json_object"}`、`stream: false` 和 `DEEPSEEK_MAX_TOKENS`。
 
 Langfuse 可选配置 `LANGFUSE_ENABLED=true`、`LANGFUSE_PUBLIC_KEY`、`LANGFUSE_SECRET_KEY` 和 `LANGFUSE_HOST`。启用后 OpenTelemetry SDK 使用 OTLP HTTP 将 Agent、模型调用和 PostgreSQL 查询 trace 发送到 Langfuse；Prompt 和结果正文不作为 span 属性记录。
+
+API 使用 OIDC Bearer JWT。必须配置精确的 `OIDC_ISSUER`、`OIDC_AUDIENCE` 和签名密钥端点 `OIDC_JWKS_URL`；服务验证签名、issuer、audience、过期时间和 subject。用户需由管理员预先登记到 `app.users`，并将身份提供方的 issuer 与 subject 写入 `identity_issuer`、`identity_subject`；服务不会通过 token 邮箱自动创建或关联账号。未配置身份提供方、未登记或已停用的身份均无法访问受保护 API。查询记录、结果、SSE、审批、反馈和审计日志按内部用户 ID 隔离。
+
+升级前已存在且 `user_id` 为空的 QueryRun 不会自动归属给任何账号，仍保留在数据库中，但通过用户 API 返回为不可见。管理员只能基于可信来源明确确认所有者后再补写 `user_id`，不得仅凭 email 推断。
 
 #### 创建查询
 
@@ -568,7 +592,11 @@ cd frontend && npm run lint && npm run test && npm run build
 - [x] 通过 SQLAlchemy asyncpg driver 在只读事务中执行查询，并应用语句超时；
 - [x] 实现结果总结和 ChartSpec；
 - [x] 接入 OpenTelemetry，并支持 OTLP 导出到 Langfuse；
+- [x] 验证 OIDC Bearer JWT，并按 `iss` + `sub` 映射已登记用户；
+- [x] 按用户隔离查询、事件流、结果、审批、反馈和审计 API；
 - [x] 配置有效 DeepSeek Key 后完成真实模型调用验收。
+- [x] 提供本地 Keycloak realm、API audience mapper、OIDC 环境值和开发用户登记脚本；
+- [x] 启动 Keycloak 与 PostgreSQL，验证 JWT、用户登记和数据库迁移；
 
 ### 阶段 4：前后端联调
 

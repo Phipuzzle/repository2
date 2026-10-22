@@ -22,7 +22,13 @@ class Settings(BaseSettings):
     deepseek_timeout_seconds: int = 60
     deepseek_max_tokens: int = 4096
     agent_enabled: bool = False
+    agent_demo_anonymous_read: bool = False
     cost_approval_threshold: float = 100000.0
+    oidc_issuer: str = ""
+    oidc_audience: str = ""
+    oidc_jwks_url: str = ""
+    oidc_algorithms: list[str] = ["RS256"]
+    oidc_jwks_cache_seconds: int = 300
     langfuse_enabled: bool = False
     langfuse_public_key: str = ""
     langfuse_secret_key: str = ""

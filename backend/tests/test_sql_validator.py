@@ -4,13 +4,18 @@ from app.sql.validator import UnsafeQueryError, validate_read_query
 
 
 def test_select_gets_default_limit_and_preserves_cte() -> None:
-    validated = validate_read_query("WITH sales AS (SELECT total_amount FROM analytics.demo_orders) SELECT total_amount FROM sales")
+    validated = validate_read_query(
+        "WITH sales AS (SELECT total_amount FROM analytics.demo_orders) "
+        "SELECT total_amount FROM sales"
+    )
     assert validated.limit == 1000
     assert validated.sql.endswith("LIMIT 1000")
 
 
 def test_select_limit_is_capped() -> None:
-    validated = validate_read_query("SELECT id FROM analytics.demo_orders LIMIT 9000", max_limit=250)
+    validated = validate_read_query(
+        "SELECT id FROM analytics.demo_orders LIMIT 9000", max_limit=250
+    )
     assert validated.limit == 250
     assert "LIMIT 250" in validated.sql
 

@@ -2,6 +2,7 @@ from typing import Any
 
 import httpx
 import pytest
+from opentelemetry.trace import StatusCode
 
 from app.agent.model import DeepSeekModelAdapter, ModelResponseError
 from app.core.config import get_settings
@@ -27,6 +28,36 @@ class MockAsyncClient:
         if isinstance(response, Exception):
             raise response
         return response
+
+
+class RecordingSpan:
+    def __init__(self) -> None:
+        self.attributes: dict[str, Any] = {}
+        self.exceptions: list[Exception] = []
+        self.status: Any = None
+
+    def __enter__(self) -> "RecordingSpan":
+        return self
+
+    def __exit__(self, *_exc_info: Any) -> None:
+        return None
+
+    def set_attribute(self, key: str, value: Any) -> None:
+        self.attributes[key] = value
+
+    def record_exception(self, exc: Exception) -> None:
+        self.exceptions.append(exc)
+
+    def set_status(self, status: Any) -> None:
+        self.status = status
+
+
+class RecordingTracer:
+    def __init__(self, span: RecordingSpan) -> None:
+        self.span = span
+
+    def start_as_current_span(self, _name: str) -> RecordingSpan:
+        return self.span
 
 
 @pytest.mark.asyncio
@@ -103,7 +134,7 @@ async def test_adapter_rejects_non_object_json_without_retry(
     client.responses.append(
         httpx.Response(
             200,
-            json={"choices": [{"message": {"content": '[1, 2]'}}]},
+            json={"choices": [{"message": {"content": "[1, 2]"}}]},
             request=httpx.Request("POST", "https://api.deepseek.com/chat/completions"),
         )
     )
@@ -115,6 +146,34 @@ async def test_adapter_rejects_non_object_json_without_retry(
         )
 
     assert len(client.requests) == 1
+
+
+@pytest.mark.asyncio
+async def test_adapter_records_model_errors_and_duration_in_telemetry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = get_settings()
+    monkeypatch.setattr(settings, "deepseek_api_key", "test-key")
+    client = MockAsyncClient(timeout=httpx.Timeout(1))
+    client.responses.append(
+        httpx.Response(
+            200,
+            json={"choices": [{"message": {"content": "[1, 2]"}}]},
+            request=httpx.Request("POST", "https://api.deepseek.com/chat/completions"),
+        )
+    )
+    span = RecordingSpan()
+    monkeypatch.setattr("app.agent.model.trace.get_tracer", lambda *_args: RecordingTracer(span))
+    monkeypatch.setattr("app.agent.model.httpx.AsyncClient", lambda **kwargs: client)
+
+    with pytest.raises(ModelResponseError, match="must be an object"):
+        await DeepSeekModelAdapter().complete_json(
+            model="deepseek-flash", system="system", user="user"
+        )
+
+    assert span.exceptions
+    assert span.status.status_code == StatusCode.ERROR
+    assert span.attributes["gen_ai.client.operation.duration_ms"] >= 0
 
 
 def test_model_router_uses_flash_for_simple_and_pro_for_complex() -> None:

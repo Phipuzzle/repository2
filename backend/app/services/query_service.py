@@ -54,9 +54,7 @@ def serialize_run(run: QueryRun) -> QueryRunResponse:
         sql=run.sql,
         result=result,
         chartSpec=(
-            ChartSpecResponse.model_validate(run.chart_spec)
-            if run.chart_spec is not None
-            else None
+            ChartSpecResponse.model_validate(run.chart_spec) if run.chart_spec is not None else None
         ),
         insight=run.insight,
         error=run.error,
@@ -95,60 +93,104 @@ async def add_audit(
     action: str,
     run_id: UUID | None = None,
     details: dict[str, Any] | None = None,
+    user_id: UUID | None = None,
 ) -> None:
-    session.add(AuditLog(run_id=run_id, action=action, details=details or {}))
+    session.add(AuditLog(user_id=user_id, run_id=run_id, action=action, details=details or {}))
 
 
-async def create_run(session: AsyncSession, payload: QueryRunCreate) -> QueryRunResponse:
-    run = QueryRun(question=payload.question, status="submitting")
+async def create_run(
+    session: AsyncSession, payload: QueryRunCreate, user_id: UUID
+) -> QueryRunResponse:
+    run = QueryRun(user_id=user_id, question=payload.question, status="submitting")
     session.add(run)
     await session.flush()
     await add_event(session, run, "submitted", "已提交查询")
-    await add_audit(session, "query_run.created", run.id, {"question_length": len(run.question)})
+    await add_audit(
+        session,
+        "query_run.created",
+        run.id,
+        {"question_length": len(run.question)},
+        user_id=user_id,
+    )
     await session.commit()
     settings = get_settings()
     if settings.agent_enabled:
         from app.agent.service import schedule_agent_run
 
         schedule_agent_run(run.id)
-    return await get_run_response(session, run.id)
+    return await get_run_response(session, run.id, user_id)
 
 
-async def get_run(session: AsyncSession, run_id: UUID) -> QueryRun:
-    run = await session.scalar(select(QueryRun).where(QueryRun.id == run_id))
+async def get_run(session: AsyncSession, run_id: UUID, user_id: UUID) -> QueryRun:
+    run = await session.scalar(
+        select(QueryRun).where(QueryRun.id == run_id, QueryRun.user_id == user_id)
+    )
     if run is None:
-        raise HTTPException(status_code=404, detail={"code": "query_run_not_found", "message": "Query run not found"})
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "query_run_not_found", "message": "Query run not found"},
+        )
     return run
 
 
-async def get_run_response(session: AsyncSession, run_id: UUID) -> QueryRunResponse:
-    run = await get_run(session, run_id)
+async def get_run_response(session: AsyncSession, run_id: UUID, user_id: UUID) -> QueryRunResponse:
+    run = await get_run(session, run_id, user_id)
     await session.refresh(run, attribute_names=["events"])
     return serialize_run(run)
 
 
-async def list_runs(session: AsyncSession, limit: int, offset: int) -> QueryRunListResponse:
-    total = int(await session.scalar(select(func.count()).select_from(QueryRun)) or 0)
-    runs = list((await session.scalars(select(QueryRun).order_by(QueryRun.created_at.desc()).limit(limit).offset(offset))).all())
+async def list_runs(
+    session: AsyncSession, limit: int, offset: int, user_id: UUID
+) -> QueryRunListResponse:
+    owned_runs = select(QueryRun).where(QueryRun.user_id == user_id)
+    total = int(await session.scalar(select(func.count()).select_from(owned_runs.subquery())) or 0)
+    runs = list(
+        (
+            await session.scalars(
+                owned_runs.order_by(QueryRun.created_at.desc()).limit(limit).offset(offset)
+            )
+        ).all()
+    )
     for run in runs:
         await session.refresh(run, attribute_names=["events"])
-    return QueryRunListResponse(items=[serialize_run(run) for run in runs], total=total, limit=limit, offset=offset)
+    return QueryRunListResponse(
+        items=[serialize_run(run) for run in runs], total=total, limit=limit, offset=offset
+    )
 
 
-async def result_page(session: AsyncSession, run_id: UUID, limit: int, offset: int) -> PaginatedResultResponse:
-    run = await get_run(session, run_id)
+async def result_page(
+    session: AsyncSession, run_id: UUID, limit: int, offset: int, user_id: UUID
+) -> PaginatedResultResponse:
+    run = await get_run(session, run_id, user_id)
     rows = run.result_rows or []
     schema = [ResultSchemaField.model_validate(field) for field in (run.result_schema or [])]
-    return PaginatedResultResponse(rows=rows[offset : offset + limit], schema=schema, total=run.result_total or len(rows), limit=limit, offset=offset)
+    return PaginatedResultResponse(
+        rows=rows[offset : offset + limit],
+        schema=schema,
+        total=run.result_total or len(rows),
+        limit=limit,
+        offset=offset,
+    )
 
 
-async def set_run_state(session: AsyncSession, run_id: UUID, action: str) -> QueryRunResponse:
-    run = await get_run(session, run_id)
+async def set_run_state(
+    session: AsyncSession, run_id: UUID, action: str, user_id: UUID
+) -> QueryRunResponse:
+    run = await get_run(session, run_id, user_id)
     if run.status in TERMINAL_STATUSES:
-        raise HTTPException(status_code=409, detail={"code": "query_run_terminal", "message": "Query run is already terminal"})
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "query_run_terminal", "message": "Query run is already terminal"},
+        )
     if action == "approve":
         if run.status != "awaiting_approval":
-            raise HTTPException(status_code=409, detail={"code": "approval_not_required", "message": "Query run is not waiting for approval"})
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "approval_not_required",
+                    "message": "Query run is not waiting for approval",
+                },
+            )
         run.status = "streaming"
         event_type, message = "approval_granted", "已确认执行"
     else:
@@ -156,7 +198,7 @@ async def set_run_state(session: AsyncSession, run_id: UUID, action: str) -> Que
         run.completed_at = datetime.now(UTC)
         event_type, message = "run_cancelled", "查询已取消"
     await add_event(session, run, event_type, message)
-    await add_audit(session, f"query_run.{action}", run.id)
+    await add_audit(session, f"query_run.{action}", run.id, user_id=user_id)
     await session.commit()
     if action == "cancel":
         from app.agent.service import cancel_agent_run
@@ -166,15 +208,25 @@ async def set_run_state(session: AsyncSession, run_id: UUID, action: str) -> Que
         from app.agent.service import schedule_agent_run
 
         schedule_agent_run(run.id, approved=True)
-    return await get_run_response(session, run.id)
+    return await get_run_response(session, run.id, user_id)
 
 
-async def list_events(session: AsyncSession, run_id: UUID, after_id: int) -> list[QueryEvent]:
-    await get_run(session, run_id)
-    return list((await session.scalars(select(QueryEvent).where(QueryEvent.run_id == run_id, QueryEvent.sequence > after_id).order_by(QueryEvent.sequence))).all())
+async def list_events(
+    session: AsyncSession, run_id: UUID, after_id: int, user_id: UUID
+) -> list[QueryEvent]:
+    await get_run(session, run_id, user_id)
+    return list(
+        (
+            await session.scalars(
+                select(QueryEvent)
+                .where(QueryEvent.run_id == run_id, QueryEvent.sequence > after_id)
+                .order_by(QueryEvent.sequence)
+            )
+        ).all()
+    )
 
 
-async def stream_events(run_id: UUID, after_id: int) -> AsyncIterator[str]:
+async def stream_events(run_id: UUID, after_id: int, user_id: UUID) -> AsyncIterator[str]:
     from app.db.session import SessionLocal
 
     settings = get_settings()
@@ -182,10 +234,12 @@ async def stream_events(run_id: UUID, after_id: int) -> AsyncIterator[str]:
     last_heartbeat = asyncio.get_running_loop().time()
     while True:
         async with SessionLocal() as session:
-            run = await session.get(QueryRun, run_id)
+            run = await session.scalar(
+                select(QueryRun).where(QueryRun.id == run_id, QueryRun.user_id == user_id)
+            )
             if run is None:
                 return
-            events = await list_events(session, run_id, last_id)
+            events = await list_events(session, run_id, last_id, user_id)
             is_terminal = run.status in TERMINAL_STATUSES
         for event in events:
             last_id = event.sequence
@@ -201,21 +255,60 @@ async def stream_events(run_id: UUID, after_id: int) -> AsyncIterator[str]:
         await asyncio.sleep(settings.sse_poll_interval_seconds)
 
 
-async def create_feedback(session: AsyncSession, payload: FeedbackCreate) -> FeedbackResponse:
-    run = await get_run(session, payload.run_id)
-    feedback = Feedback(run_id=run.id, rating=payload.rating, comment=payload.comment)
+async def create_feedback(
+    session: AsyncSession, payload: FeedbackCreate, user_id: UUID
+) -> FeedbackResponse:
+    run = await get_run(session, payload.run_id, user_id)
+    feedback = Feedback(
+        run_id=run.id, user_id=user_id, rating=payload.rating, comment=payload.comment
+    )
     session.add(feedback)
-    await add_audit(session, "feedback.created", run.id, {"rating": payload.rating})
+    await add_audit(
+        session, "feedback.created", run.id, {"rating": payload.rating}, user_id=user_id
+    )
     await session.commit()
     await session.refresh(feedback)
-    return FeedbackResponse(id=feedback.id, run_id=feedback.run_id, rating=feedback.rating, comment=feedback.comment, created_at=feedback.created_at)
+    return FeedbackResponse(
+        id=feedback.id,
+        run_id=feedback.run_id,
+        rating=feedback.rating,
+        comment=feedback.comment,
+        created_at=feedback.created_at,
+    )
 
 
 async def list_metrics(session: AsyncSession) -> list[MetricResponse]:
     metrics = (await session.scalars(select(Metric).order_by(Metric.name))).all()
-    return [MetricResponse(name=item.name, definition=item.definition, source=item.source, updatedAt=item.updated_at) for item in metrics]
+    return [
+        MetricResponse(
+            name=item.name,
+            definition=item.definition,
+            source=item.source,
+            updatedAt=item.updated_at,
+        )
+        for item in metrics
+    ]
 
 
-async def list_audit_logs(session: AsyncSession, limit: int, offset: int) -> list[AuditLogResponse]:
-    items = (await session.scalars(select(AuditLog).order_by(AuditLog.created_at.desc()).limit(limit).offset(offset))).all()
-    return [AuditLogResponse(id=item.id, run_id=item.run_id, action=item.action, details=item.details, created_at=item.created_at) for item in items]
+async def list_audit_logs(
+    session: AsyncSession, limit: int, offset: int, user_id: UUID
+) -> list[AuditLogResponse]:
+    items = (
+        await session.scalars(
+            select(AuditLog)
+            .where(AuditLog.user_id == user_id)
+            .order_by(AuditLog.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+    ).all()
+    return [
+        AuditLogResponse(
+            id=item.id,
+            run_id=item.run_id,
+            action=item.action,
+            details=item.details,
+            created_at=item.created_at,
+        )
+        for item in items
+    ]

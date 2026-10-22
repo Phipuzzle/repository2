@@ -2,6 +2,7 @@ from typing import Any
 
 import pytest
 
+from app.agent.authorization import AuthorizationError, AuthorizationPolicy
 from app.agent.chart import build_chart_spec
 from app.agent.model import DeepSeekModelAdapter, ModelConfigurationError
 from app.agent.workflow import build_workflow
@@ -23,6 +24,11 @@ class EmptyMetadataSession:
 class EmptyRows:
     def all(self) -> list[Any]:
         return []
+
+
+@pytest.fixture(autouse=True)
+def allow_configured_demo_read(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(get_settings(), "agent_demo_anonymous_read", True)
 
 
 class FakeModelAdapter:
@@ -66,6 +72,8 @@ class FakeModelAdapter:
 async def test_workflow_runs_read_only_query_and_builds_chart(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr(get_settings(), "agent_demo_anonymous_read", True)
+
     async def fake_explain(_engine: Any, _sql: str) -> float:
         return 10.0
 
@@ -105,9 +113,7 @@ async def test_workflow_stops_for_clarification_before_metadata_or_sql() -> None
         adapter=adapter,  # type: ignore[arg-type]
     )
 
-    result = await graph.ainvoke(
-        {"run_id": "test", "question": "查订单", "status": "streaming"}
-    )
+    result = await graph.ainvoke({"run_id": "test", "question": "查订单", "status": "streaming"})
 
     assert result["status"] == "awaiting_clarification"
     assert result["clarification"] == "请补充日期范围"
@@ -115,9 +121,26 @@ async def test_workflow_stops_for_clarification_before_metadata_or_sql() -> None
 
 
 @pytest.mark.asyncio
+async def test_workflow_rejects_anonymous_query_by_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(get_settings(), "agent_demo_anonymous_read", False)
+    graph = build_workflow(
+        session_factory=EmptyMetadataSession,  # type: ignore[arg-type]
+        engine=engine,
+        adapter=FakeModelAdapter(),  # type: ignore[arg-type]
+    )
+
+    with pytest.raises(AuthorizationError, match="identity"):
+        await graph.ainvoke({"run_id": "test", "question": "列出订单", "status": "streaming"})
+
+
+@pytest.mark.asyncio
 async def test_workflow_requires_approval_when_explain_cost_is_high(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr(get_settings(), "agent_demo_anonymous_read", True)
+
     async def fake_explain(_engine: Any, _sql: str) -> float:
         return 200_000.0
 
@@ -146,6 +169,8 @@ async def test_workflow_requires_approval_when_explain_cost_is_high(
 async def test_workflow_repairs_unsafe_sql_once_before_execution(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr(get_settings(), "agent_demo_anonymous_read", True)
+
     executed: list[str] = []
 
     async def fake_explain(_engine: Any, _sql: str) -> float:
@@ -171,15 +196,105 @@ async def test_workflow_repairs_unsafe_sql_once_before_execution(
         adapter=adapter,  # type: ignore[arg-type]
     )
 
-    result = await graph.ainvoke(
-        {"run_id": "test", "question": "列出订单", "status": "streaming"}
-    )
+    result = await graph.ainvoke({"run_id": "test", "question": "列出订单", "status": "streaming"})
 
     sql_calls = [user for system, user in adapter.calls if "只读 SQL 专家" in system]
     assert result["status"] == "completed"
     assert len(sql_calls) == 2
     assert "校验错误" in sql_calls[1]
     assert executed == ["SELECT id FROM analytics.demo_orders LIMIT 5"]
+
+
+@pytest.mark.asyncio
+async def test_workflow_rechecks_cost_before_executing_repaired_sql(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    execution_attempts = 0
+    explain_costs = iter([10.0, 200_000.0])
+
+    async def fake_explain(_engine: Any, _sql: str) -> float:
+        return next(explain_costs)
+
+    async def fake_execute(_engine: Any, _sql: str) -> Any:
+        nonlocal execution_attempts
+        execution_attempts += 1
+        raise RuntimeError("column does not exist")
+
+    adapter = FakeModelAdapter(
+        sql_responses=[
+            "SELECT id FROM analytics.demo_orders LIMIT 5",
+            "SELECT id FROM analytics.demo_orders LIMIT 5",
+        ]
+    )
+    monkeypatch.setattr("app.agent.workflow.explain_query", fake_explain)
+    monkeypatch.setattr("app.agent.workflow.execute_read_query", fake_execute)
+    monkeypatch.setattr(get_settings(), "cost_approval_threshold", 100_000.0)
+    graph = build_workflow(
+        session_factory=EmptyMetadataSession,  # type: ignore[arg-type]
+        engine=engine,
+        adapter=adapter,  # type: ignore[arg-type]
+    )
+
+    result = await graph.ainvoke(
+        {"run_id": "test", "question": "列出订单", "status": "streaming"}
+    )
+
+    assert result["status"] == "awaiting_approval"
+    assert result["query_cost"] == 200_000.0
+    assert execution_attempts == 1
+
+
+@pytest.mark.asyncio
+async def test_approved_query_is_revalidated_and_reauthorized_before_execution(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    explained: list[str] = []
+    executed: list[str] = []
+
+    async def fake_explain(_engine: Any, sql: str) -> float:
+        explained.append(sql)
+        return 10.0
+
+    async def fake_execute(
+        _engine: Any, sql: str
+    ) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
+        executed.append(sql)
+        return [], []
+
+    monkeypatch.setattr("app.agent.workflow.explain_query", fake_explain)
+    monkeypatch.setattr("app.agent.workflow.execute_read_query", fake_execute)
+    monkeypatch.setattr(
+        "app.agent.workflow.load_policies",
+        lambda *_args: _policies(),
+    )
+    adapter = FakeModelAdapter()
+    graph = build_workflow(
+        session_factory=EmptyMetadataSession,  # type: ignore[arg-type]
+        engine=engine,
+        adapter=adapter,  # type: ignore[arg-type]
+    )
+
+    result = await graph.ainvoke(
+        {
+            "run_id": "test",
+            "user_id": "00000000-0000-0000-0000-000000000001",
+            "question": "列出订单",
+            "status": "streaming",
+            "approved": True,
+            "sql": "SELECT id FROM analytics.demo_orders LIMIT 5",
+            "model": "deepseek-flash",
+        }
+    )
+
+    assert result["status"] == "completed"
+    assert len(explained) == 1
+    assert executed == [
+        "SELECT id FROM analytics.demo_orders WHERE demo_orders.region_id = 1 LIMIT 5"
+    ]
+
+
+async def _policies() -> list[AuthorizationPolicy]:
+    return [AuthorizationPolicy("analytics.demo_orders", row_filter="region_id = 1")]
 
 
 def test_chart_spec_requires_numeric_measure() -> None:

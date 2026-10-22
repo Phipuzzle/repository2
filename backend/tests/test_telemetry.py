@@ -69,7 +69,8 @@ def test_telemetry_builds_otlp_exporter_with_basic_auth(
     telemetry.configure_telemetry()
 
     assert captured["endpoint"] == "https://langfuse.example/api/public/otel/v1/traces"
-    assert captured["headers"]["Authorization"] == "Basic " + base64.b64encode(
-        b"public-test:secret-test"
-    ).decode()
+    assert (
+        captured["headers"]["Authorization"]
+        == "Basic " + base64.b64encode(b"public-test:secret-test").decode()
+    )
     assert isinstance(captured["provider"], FakeProvider)
