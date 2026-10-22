@@ -54,6 +54,10 @@ export function DataTable({ result }: { result: QueryResult | null }) {
           ? Number(value).toLocaleString("zh-CN")
           : String(value),
   }));
+  const dataSource = result.rows.map((row, index) => ({
+    ...row,
+    key: `${index}:${JSON.stringify(row)}`,
+  }));
   return (
     <section aria-label="查询结果数据表">
       <div className="section-title">
@@ -77,9 +81,9 @@ export function DataTable({ result }: { result: QueryResult | null }) {
         size="small"
         pagination={{ pageSize: 5, showSizeChanger: false }}
         scroll={{ x: "max-content" }}
-        rowKey={(_, index) => String(index)}
+        rowKey="key"
         columns={columns}
-        dataSource={result.rows}
+        dataSource={dataSource}
       />
     </section>
   );
