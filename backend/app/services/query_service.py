@@ -79,6 +79,7 @@ def serialize_run(run: QueryRun) -> QueryRunResponse:
             ChartSpecResponse.model_validate(run.chart_spec) if run.chart_spec is not None else None
         ),
         insight=run.insight,
+        usage=run.usage,
         error=run.error,
         clarification=run.clarification,
         approvalReason=run.approval_reason,

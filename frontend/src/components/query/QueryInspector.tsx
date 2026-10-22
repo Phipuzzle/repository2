@@ -39,6 +39,7 @@ export function QueryInspector({
     Number.isFinite(startedAt) && Number.isFinite(completedAt)
       ? `${((completedAt - startedAt) / 1000).toFixed(1)}s`
       : "-";
+  const tokenUsage = run.usage?.total_tokens ?? 0;
   return (
     <aside className="inspector-panel" aria-label="查询详情">
       <div className="panel-heading">
@@ -134,6 +135,7 @@ export function QueryInspector({
                   },
                   { key: "db", label: "数据源", children: "PostgreSQL" },
                   { key: "latency", label: "耗时", children: latency },
+                  { key: "tokens", label: "Token", children: tokenUsage },
                 ]}
               />
             ),

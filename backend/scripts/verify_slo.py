@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import base64
+import json
 import math
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 import httpx
 
 from app.core.config import get_settings
+
+REPORT_PATH = Path("evals/slo-report.json")
 
 
 def percentile(values: list[float], p: float) -> float:
@@ -96,6 +100,8 @@ def main() -> None:
         },
     }
     print(report)
+    REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    REPORT_PATH.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     violations = []
     if agent["count"] and agent["p95_seconds"] > settings.slo_agent_p95_seconds:
         violations.append(f"agent p95 {agent['p95_seconds']:.2f}s exceeds threshold")
@@ -107,7 +113,15 @@ def main() -> None:
         violations.append(f"deepseek error rate {deepseek['error_rate']:.3f} exceeds threshold")
 
     if violations:
-        raise SystemExit("SLO violations:\n" + "\n".join(violations))
+        message = "SLO violations:\n" + "\n".join(violations)
+        print("ALERT: " + message)
+        if settings.alert_webhook_url:
+            httpx.post(
+                settings.alert_webhook_url,
+                json={"text": message, "report": report},
+                timeout=10,
+            )
+        raise SystemExit(message)
     print("OK: SLO checks passed")
 
 

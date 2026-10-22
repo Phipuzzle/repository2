@@ -141,6 +141,11 @@ async def run_agent(run_id: UUID, *, approved: bool = False) -> None:
                     if current is None or current.status == "cancelled":
                         return
                     await _apply_update(current, update)
+                    if adapter.last_usage:
+                        usage = dict(current.usage or {})
+                        for key, value in adapter.last_usage.items():
+                            usage[key] = usage.get(key, 0) + value
+                        current.usage = usage
                     event_type, message = EVENTS.get(node_name, (f"agent_{node_name}", node_name))
                     details = {
                         key: value

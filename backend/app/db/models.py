@@ -125,6 +125,7 @@ class QueryRun(Base):
     result_total: Mapped[int | None] = mapped_column(Integer, nullable=True)
     chart_spec: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     insight: Mapped[str] = mapped_column(Text, default="")
+    usage: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     clarification: Mapped[str | None] = mapped_column(Text, nullable=True)
     approval_reason: Mapped[str | None] = mapped_column(Text, nullable=True)

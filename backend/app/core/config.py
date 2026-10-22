@@ -44,6 +44,7 @@ class Settings(BaseSettings):
     slo_agent_error_rate: float = 0.2
     slo_deepseek_p95_seconds: float = 20.0
     slo_deepseek_error_rate: float = 0.2
+    alert_webhook_url: str = ""
     langfuse_enabled: bool = False
     langfuse_public_key: str = ""
     langfuse_secret_key: str = ""

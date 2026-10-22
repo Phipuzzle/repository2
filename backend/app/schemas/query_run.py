@@ -68,6 +68,7 @@ class QueryRunResponse(BaseModel):
     result: QueryResultResponse | None
     chartSpec: ChartSpecResponse | None
     insight: str
+    usage: dict[str, Any] | None
     error: str | None
     clarification: str | None
     approvalReason: str | None

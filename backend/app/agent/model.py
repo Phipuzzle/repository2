@@ -21,6 +21,7 @@ class ModelResponseError(RuntimeError):
 class DeepSeekModelAdapter:
     def __init__(self) -> None:
         self.settings = get_settings()
+        self.last_usage: dict[str, int] = {}
 
     def model_for(self, complexity: str) -> str:
         if complexity == "complex":
@@ -99,6 +100,11 @@ class DeepSeekModelAdapter:
                         if not isinstance(content, str) or not content.strip():
                             raise ModelResponseError("DeepSeek returned empty JSON content")
                         usage = response_body.get("usage", {})
+                        self.last_usage = {
+                            key: int(usage[key])
+                            for key in ("prompt_tokens", "completion_tokens", "total_tokens")
+                            if key in usage
+                        }
                         for key, attribute in (
                             ("prompt_tokens", "gen_ai.usage.input_tokens"),
                             ("completion_tokens", "gen_ai.usage.output_tokens"),

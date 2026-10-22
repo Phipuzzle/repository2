@@ -8,6 +8,7 @@ __pycache__/
 backend/.env
 backend/evals/results.json
 backend/evals/feedback_candidates.json
+backend/evals/slo-report.json
 .models/
 infra/.env
 

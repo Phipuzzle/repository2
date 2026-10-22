@@ -80,6 +80,8 @@ cd backend
 
 SLO 阈值通过 `SLO_AGENT_P95_SECONDS`、`SLO_AGENT_ERROR_RATE`、`SLO_DEEPSEEK_P95_SECONDS`、`SLO_DEEPSEEK_ERROR_RATE` 配置，超阈值时脚本以非零码退出。
 
+设置 `ALERT_WEBHOOK_URL` 后，SLO 告警会以 JSON POST 到该地址；报告写入 `backend/evals/slo-report.json`。
+
 ## 语义检索
 
 默认使用确定性的哈希 embedding，可在不下载模型的情况下运行。若要启用本地多语言模型：

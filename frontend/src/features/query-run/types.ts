@@ -84,6 +84,7 @@ export interface QueryRun {
   result: QueryResult | null;
   chartSpec: ChartSpec | null;
   insight: string;
+  usage?: Record<string, number> | null;
   error: string | null;
   clarification: string | null;
   approvalReason: string | null;
